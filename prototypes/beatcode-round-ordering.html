@@ -5,6 +5,17 @@
 <title>Beatcode · throwaway round ordering prototype</title>
 <style>
 :root{font-family:system-ui,sans-serif;color:#243142;font-size:14px;color-scheme:light}*{box-sizing:border-box}body{margin:0;background:transparent}main{max-width:1180px;margin:auto;padding:16px}h1{font-size:24px;margin:8px 0}h2{font-size:18px;margin:0 0 12px}h3{font-size:15px;margin:0 0 8px}p{line-height:1.55;margin:8px 0}.muted,small{color:#5b6878}.tag{font-size:12px;font-weight:700;color:#345b96;letter-spacing:.04em}section,.panel{padding:16px;background:#fff;border:1px solid #d9e0e8;border-radius:8px;margin:12px 0}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.grid>.panel{margin:0}.wide{grid-column:1/-1}button,select,textarea,input{font:inherit}button,select{padding:8px 10px;border:1px solid #bcc9d9;background:#f7f9fc;border-radius:5px;color:#243142}button{cursor:pointer}button:hover{background:#eaf0fa}button:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #527ec0;outline-offset:2px}button[aria-selected=true]{background:#345b96;color:white}button:disabled{opacity:.5;cursor:default}.actions,.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}dl{display:grid;grid-template-columns:145px 1fr;gap:7px;margin:0}dt{color:#5b6878}dd{margin:0;overflow-wrap:anywhere}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:8px;border-bottom:1px solid #e4e9f0;vertical-align:top;overflow-wrap:anywhere}.scroll{overflow:auto}textarea{width:100%;min-height:88px;padding:10px;border:1px solid #c9d2df;border-radius:5px;resize:vertical}.notice{background:#edf3fd;border-left:3px solid #345b96;padding:12px;line-height:1.5}ul,ol{padding-left:22px;line-height:1.6}.steps{display:grid;gap:8px}.steps button{text-align:left}code{font-size:12px;white-space:pre-wrap}#message{min-height:42px}.light{background:#fffbe8}.contrast{background:#162331;color:#fff}.contrast small,.contrast dt{color:#cfdaeb}@media(max-width:720px){.grid{grid-template-columns:1fr}dl{grid-template-columns:120px 1fr}main{padding:8px}h1{font-size:21px}}
+/* Use the reader's theme when embedded in T3; retain standalone fallbacks. */
+:root{color:var(--foreground,#243142);color-scheme:light dark}
+main{padding:0}
+section,.panel{background:var(--card,#fff);color:var(--foreground,#243142);border-color:var(--border,#d9e0e8)}
+.muted,small,dt{color:var(--muted-foreground,#5b6878)}
+.tag{color:var(--accent-foreground,#345b96)}
+button,select,textarea,input{background:var(--secondary,#f7f9fc);color:var(--foreground,#243142);border-color:var(--border,#bcc9d9)}
+button:hover{background:var(--accent-surface,#eaf0fa)}
+button[aria-selected=true]{background:var(--primary,#345b96);color:var(--primary-foreground,#fff)}
+.notice{background:var(--secondary,#edf3fd);color:var(--foreground,#243142)}
+@media(max-width:720px){main{padding:0}}
 </style>
 </head>
 <body><main>
