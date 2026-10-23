@@ -4,7 +4,8 @@ import AxeBuilder from '@axe-core/playwright';
 import { join } from 'node:path';
 import { hostedSignIn, activate, choose } from './e2e/accounts';
 import setupAccounts from './e2e/setup';
-import { observeCards, cardFailureLine } from './e2e/card-diagnostics';
+import { observeCards, cardFailureLine, cardNames } from './e2e/card-diagnostics';
+import { observeActivation, activationFailureLine } from './e2e/activation-diagnostics';
 import { observeScoredResult } from './e2e/results';
 import { observePresence, expectPresenceCadence, expectPresenceStopped } from './e2e/presence';
 
@@ -177,31 +178,59 @@ test('two authenticated players create, join, ready, preserve code, and concede 
 				await panel(source, 'Cards');
 				const card = source.getByRole('button', { name: new RegExp('^' + name + ' ·') });
 				await expect(card).toBeEnabled({ timeout: 65000 });
-				cardProbes.get(source)!.begin();
-				await activate(card);
-				const incoming = receiver
-					.getByRole('listitem')
-					.filter({ hasText: new RegExp('^' + name + ' on you ·') });
+				let activation: Awaited<ReturnType<typeof observeActivation>>;
 				try {
-					await expect(incoming).toBeVisible();
-				} catch (error) {
+					activation = await observeActivation(card);
+				} catch {
+					/* Optional evidence cannot replace activation. */
+				}
+				cardProbes.get(source)!.begin();
+				try {
+					await activate(card);
 					try {
-						const count = await incoming.count().catch(() => -1);
-						const visible = await incoming.isVisible().catch(() => false);
-						console.info(
-							cardFailureLine(
-								name,
-								source === a ? 'host-to-guest' : 'guest-to-host',
-								cardProbes.get(source)!.read(name),
-								cardProbes.get(receiver)!.read(name),
-								count,
-								visible
-							)
-						);
+						await activation?.after();
 					} catch {
-						/* Diagnostic failures must preserve the original assertion error. */
+						/* Preserve the original UI path. */
 					}
-					throw error;
+					const incoming = receiver
+						.getByRole('listitem')
+						.filter({ hasText: new RegExp('^' + name + ' on you ·') });
+					try {
+						await expect(incoming).toBeVisible();
+					} catch (error) {
+						try {
+							const snapshot = activation?.read();
+							if (snapshot) {
+								const line = activationFailureLine(
+									cardNames[name],
+									source === a ? 'host-to-guest' : 'guest-to-host',
+									snapshot
+								);
+								if (line) console.info(line);
+							}
+							const count = await incoming.count().catch(() => -1);
+							const visible = await incoming.isVisible().catch(() => false);
+							console.info(
+								cardFailureLine(
+									name,
+									source === a ? 'host-to-guest' : 'guest-to-host',
+									cardProbes.get(source)!.read(name),
+									cardProbes.get(receiver)!.read(name),
+									count,
+									visible
+								)
+							);
+						} catch {
+							/* Diagnostic failures must preserve the original assertion error. */
+						}
+						throw error;
+					}
+				} finally {
+					try {
+						await activation?.close();
+					} catch {
+						/* Cleanup cannot replace the original UI failure. */
+					}
 				}
 				await panel(receiver, 'Code');
 				const code = receiver.getByRole('textbox', { name: 'C++ solution', exact: true });

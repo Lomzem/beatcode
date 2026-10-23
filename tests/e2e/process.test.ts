@@ -217,3 +217,62 @@ it('forwards a fixed card-failure diagnostic while suppressing injected private 
 		output.mockRestore();
 	}
 });
+
+it('selects only the fixed activation record at the external stdout boundary', async () => {
+	const record = {
+		card: 'brain_teaser',
+		direction: 'host-to-guest',
+		beforeVisible: true,
+		beforeEnabled: true,
+		beforeFocused: false,
+		afterVisible: true,
+		afterEnabled: false,
+		afterFocused: false,
+		enterCount: 1,
+		enterOnControl: true,
+		enterPrevented: false,
+		clickCount: 1,
+		clickOnControl: true
+	};
+	const prefix = 'CI activation failure: ';
+	const safe = prefix + JSON.stringify(record);
+	const lines = [
+		safe,
+		...Object.entries({
+			rawFrame: 'private-frame',
+			error: 'private-error',
+			jwt: 'canary.jwt.private',
+			email: 'canary@example.invalid',
+			accountId: 'user_private',
+			canary: 'private-canary'
+		}).map(([key, value]) => prefix + JSON.stringify({ ...record, [key]: value })),
+		...[
+			{ ...record, card: 'user_private' },
+			{ ...record, direction: ['host-to-guest'] },
+			{ ...record, beforeVisible: 'canary@example.invalid' },
+			{ ...record, enterCount: 100 },
+			{ ...record, clickCount: -1 },
+			{ ...record, enterCount: 1.5 },
+			{ ...record, clickCount: Infinity },
+			{ ...record, enterOnControl: [] }
+		].map((row) => prefix + JSON.stringify(row)),
+		prefix + 'private-error',
+		prefix + '[]'
+	];
+	const emitted: string[] = [];
+	const output = vi.spyOn(console, 'info').mockImplementation((line) => {
+		emitted.push(String(line));
+	});
+	try {
+		await Effect.runPromise(
+			runCommand(
+				['node', '-e', `process.stdout.write(${JSON.stringify(lines.join('\n') + '\n')})`],
+				'Diagnostic child failed',
+				process.env
+			)
+		);
+		expect(emitted).toEqual([safe]);
+	} finally {
+		output.mockRestore();
+	}
+});

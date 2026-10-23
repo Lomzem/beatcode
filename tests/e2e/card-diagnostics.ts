@@ -1,14 +1,14 @@
 import type { Page } from '@playwright/test';
 import { CARD_RULES, type CardId } from '../../shared/cards';
 
-const names = {
+export const cardNames = {
 	'Light mode': 'light_mode',
 	'No paste': 'no_paste',
 	'No hints': 'no_hints',
 	'Brain teaser': 'brain_teaser',
 	'Strict compile': 'strict_compile'
 } as const;
-type CardName = keyof typeof names;
+type CardName = keyof typeof cardNames;
 type Ack = 'NONE' | 'PENDING' | 'OK' | 'COOLDOWN' | 'POWER' | 'OTHER';
 const prefix = 'CI card failure: ';
 const isCard = (value: unknown): value is CardId =>
@@ -141,7 +141,7 @@ export function observeCards(page: Page) {
 			started = Date.now();
 		},
 		read(name: CardName) {
-			const effect = effects.get(names[name]);
+			const effect = effects.get(cardNames[name]);
 			return {
 				mutation,
 				actual,
@@ -168,7 +168,7 @@ export function cardFailureLine(
 	return (
 		prefix +
 		JSON.stringify({
-			card: names[name],
+			card: cardNames[name],
 			direction,
 			mutation: source.mutation,
 			actual: source.actual,
