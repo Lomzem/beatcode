@@ -1,0 +1,3 @@
+# CLI-only materialization of the root manifest; no separate dependency install.
+/package.json
+/convex/_generated/

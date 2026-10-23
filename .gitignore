@@ -1,6 +1,17 @@
 # Local issues, specs, and working notes
 /.scratch/
 
+# Dependencies and generated output
+node_modules/
+.svelte-kit/
+build/
+dist/
+.wrangler/
+playwright-report/
+test-results/
+coverage/
+.clerk/
+
 # Local environment and secrets
 .env
 .env.*

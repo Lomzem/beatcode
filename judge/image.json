@@ -1,0 +1,9 @@
+{
+	"modalImageId": "im-DSAAzUvosNVxcewR73LF50",
+	"baseDigest": "sha256:eb5e64286ad47187b32bda75c6b6916166ecb41da56559b8b09e0001748d2cce",
+	"gccVersion": "15.3.0",
+	"runtime": "gvisor",
+	"cpu": 1,
+	"runnerSha256": "0b82d709fd6c7ae466d29c3c74b79623ac7c53b0500be288fb2149530dfa6106",
+	"runnerSourceSha256": "a7f887c14f9c118a264406940832e4bb68fc2d81ed2352441ad4b25601daac42"
+}

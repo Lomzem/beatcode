@@ -1,0 +1,424 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@custom-variant dark (&:is([data-theme='dark'] *));
+@theme inline {
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-card: var(--card);
+	--color-card-foreground: var(--foreground);
+	--color-primary: var(--primary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-secondary: var(--secondary);
+	--color-secondary-foreground: var(--foreground);
+	--color-muted: var(--secondary);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-accent: var(--secondary);
+	--color-accent-foreground: var(--foreground);
+	--color-destructive: #b42318;
+	--color-border: var(--border);
+	--color-input: var(--border);
+	--color-ring: var(--ring);
+	--radius-md: 0.6rem;
+	--radius-lg: 0.8rem;
+	--radius-sm: 0.4rem;
+}
+@font-face {
+	font-family: 'Barlow Condensed';
+	src: url('/fonts/BarlowCondensed-SemiBold.ttf') format('truetype');
+	font-style: normal;
+	font-weight: 600 700;
+	font-display: swap;
+}
+@font-face {
+	font-family: 'Atkinson Hyperlegible';
+	src: url('/fonts/AtkinsonHyperlegible-Regular.ttf') format('truetype');
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+}
+@font-face {
+	font-family: 'Atkinson Hyperlegible';
+	src: url('/fonts/AtkinsonHyperlegible-Bold.ttf') format('truetype');
+	font-style: normal;
+	font-weight: 600 900;
+	font-display: swap;
+}
+/* Metrics measured against Arial/Liberation Sans for the local heading/body fonts.
+   Explicit line boxes plus matched fallbacks keep delayed font swaps compact. */
+@font-face {
+	font-family: 'Barlow Fallback';
+	src: local('Arial Bold'), local('Liberation Sans Bold');
+	font-weight: 600 700;
+	size-adjust: 73.17%;
+	ascent-override: 136.67%;
+	descent-override: 27.33%;
+	line-gap-override: 0%;
+}
+@font-face {
+	font-family: 'Atkinson Fallback';
+	src: local('Arial'), local('Liberation Sans');
+	font-weight: 400;
+	size-adjust: 100.5%;
+	ascent-override: 94.53%;
+	descent-override: 28.86%;
+	line-gap-override: 0%;
+}
+@font-face {
+	font-family: 'Atkinson Fallback';
+	src: local('Arial Bold'), local('Liberation Sans Bold');
+	font-weight: 600 900;
+	size-adjust: 99.55%;
+	ascent-override: 95.43%;
+	descent-override: 29.13%;
+	line-gap-override: 0%;
+}
+:root {
+	--font-heading: 'Barlow Condensed', 'Barlow Fallback', sans-serif;
+	font-family: 'Atkinson Hyperlegible', 'Atkinson Fallback', ui-sans-serif, system-ui, sans-serif;
+	color-scheme: dark;
+	--background: #18223b;
+	--error: #ffb4ab;
+	--code-token: #b9d7ff;
+	--foreground: #f4f7ff;
+	--card: #18223b;
+	--secondary: #293858;
+	--muted-foreground: #c2cdeb;
+	--primary: #b6c7ff;
+	--primary-foreground: #18223b;
+	--border: #8e9bbd;
+	--ring: #b6c7ff;
+	background: var(--background);
+	color: var(--foreground);
+	font-synthesis: none;
+	overflow-wrap: anywhere;
+}
+:root[data-theme='light'] {
+	color-scheme: light;
+	--background: #f4f7ff;
+	--error: #a32232;
+	--code-token: #17478c;
+	--foreground: #18223b;
+	--card: #fff;
+	--secondary: #dce5ff;
+	--muted-foreground: #495778;
+	--primary: #2448d8;
+	--primary-foreground: #fff;
+	--border: #69799e;
+	--ring: #2448d8;
+}
+:root[data-theme='contrast'] {
+	color-scheme: dark;
+	--background: #000;
+	--error: #ffb4ab;
+	--code-token: #ffff00;
+	--foreground: #fff;
+	--card: #000;
+	--secondary: #171717;
+	--muted-foreground: #fff;
+	--primary: #e1ff00;
+	--primary-foreground: #000;
+	--border: #fff;
+	--ring: #e1ff00;
+}
+@media (prefers-color-scheme: light) {
+	:root:not([data-theme]) {
+		color-scheme: light;
+		--background: #f4f7ff;
+		--error: #a32232;
+		--code-token: #17478c;
+		--foreground: #18223b;
+		--card: #fff;
+		--secondary: #dce5ff;
+		--muted-foreground: #495778;
+		--primary: #2448d8;
+		--primary-foreground: #fff;
+		--border: #69799e;
+		--ring: #2448d8;
+	}
+}
+* {
+	box-sizing: border-box;
+	border-color: var(--border);
+}
+body {
+	margin: 0;
+	min-width: 320px;
+}
+a,
+button,
+input,
+select {
+	touch-action: manipulation;
+}
+a {
+	text-underline-offset: 0.25em;
+}
+a:hover {
+	text-decoration: underline;
+}
+button,
+input,
+select {
+	font: inherit;
+}
+button,
+a,
+input,
+select {
+	scroll-margin-block: 1rem;
+}
+:focus-visible {
+	outline: 3px solid var(--ring);
+	outline-offset: 4px;
+}
+p {
+	line-height: 1.6;
+}
+h1,
+h2,
+h3,
+p {
+	margin-top: 0;
+}
+h1,
+h2,
+h3 {
+	font-family: var(--font-heading);
+	text-wrap: balance;
+}
+h1 {
+	font-size: clamp(2.5rem, 5vw, 3.5rem);
+	letter-spacing: -0.025em;
+	line-height: 1.04;
+	font-weight: 600;
+}
+h2 {
+	font-size: clamp(1.25rem, 3vw, 1.6rem);
+	letter-spacing: -0.03em;
+	font-weight: 600;
+}
+h3 {
+	font-size: 1.1rem;
+	font-weight: 600;
+}
+.shell {
+	width: min(100% - 3rem, 74rem);
+	margin-inline: auto;
+}
+.muted {
+	color: var(--muted-foreground);
+}
+.eyebrow {
+	font-family: ui-monospace, monospace;
+	letter-spacing: 0.14em;
+	font-size: 0.75rem;
+	text-transform: uppercase;
+	color: var(--primary);
+}
+.panel {
+	padding: 1rem 0;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+}
+.page {
+	padding-block: 2rem;
+	min-height: 65vh;
+}
+.prose {
+	max-width: 46rem;
+}
+.prose h1 {
+	font-size: clamp(2rem, 5vw, 3.6rem);
+}
+.prose h2 {
+	margin-top: 2.5rem;
+}
+.field {
+	display: grid;
+	gap: 0.6rem;
+	margin-block: 1.25rem;
+}
+.error {
+	color: var(--error);
+}
+
+@media (max-width: 639px) {
+	.shell {
+		width: calc(100% - 2rem);
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation: none !important;
+		transition: none !important;
+		scroll-behavior: auto !important;
+	}
+}
+:root[data-motion='reduce'] *,
+:root[data-motion='reduce'] *::before,
+:root[data-motion='reduce'] *::after {
+	animation: none !important;
+	transition: none !important;
+	scroll-behavior: auto !important;
+}
+@media (forced-colors: active) {
+	:focus-visible {
+		outline: 3px solid Highlight;
+	}
+	.panel {
+		border: 1px solid CanvasText;
+	}
+}
+@layer components {
+	.cn-button {
+		border-radius: 0.55rem;
+		gap: 0.6rem;
+		font-weight: 600;
+		font-size: 0.875rem;
+		border: 1px solid transparent;
+		min-height: 44px;
+		white-space: normal;
+		text-align: center;
+	}
+	.cn-button:focus-visible,
+	.cn-input:focus-visible {
+		outline: 3px solid var(--ring);
+		outline-offset: 4px;
+	}
+	.cn-button-variant-default {
+		background: var(--primary);
+		color: var(--primary-foreground);
+	}
+	.cn-button-variant-default:hover {
+		filter: brightness(0.95);
+	}
+	.cn-button-variant-outline {
+		border-color: var(--border);
+		background: transparent;
+		color: var(--foreground);
+	}
+	.cn-button-variant-secondary,
+	.cn-button-variant-ghost:hover {
+		background: var(--secondary);
+		color: var(--foreground);
+	}
+	.cn-button-variant-link {
+		text-decoration: underline;
+		color: var(--primary);
+	}
+	.cn-button-size-default {
+		padding: 0.7rem 1.1rem;
+	}
+	.cn-button-size-lg {
+		padding: 0.85rem 1.5rem;
+	}
+	.cn-button-size-sm {
+		padding: 0.5rem 0.85rem;
+	}
+	.cn-input {
+		min-height: 44px;
+		padding: 0.7rem 0.8rem;
+		font-size: 1rem;
+		border: 1px solid var(--border);
+		border-radius: 0.5rem;
+		background: var(--background);
+		color: var(--foreground);
+	}
+	.cn-label {
+		font-size: 0.875rem;
+		font-weight: 600;
+	}
+}
+
+/* Let flex and grid items reflow under text enlargement and custom spacing. */
+main :where(section, aside, div, li),
+header > *,
+footer > * {
+	min-width: 0;
+}
+
+/* Game controls share the public site's preference-aware palette. */
+.game-page h1 {
+	font-size: clamp(2rem, 5vw, 3.5rem);
+}
+.game-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+	gap: 1.25rem;
+}
+.game-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 44px;
+	padding: 0.65rem 1rem;
+	border: 1px solid var(--border);
+	border-radius: 0.5rem;
+	background: var(--card);
+	color: var(--foreground);
+	font: inherit;
+	text-decoration: none;
+	cursor: pointer;
+	white-space: normal;
+}
+.game-button.primary {
+	background: var(--primary);
+	color: var(--primary-foreground);
+}
+.game-button:disabled {
+	opacity: 0.65;
+	cursor: default;
+}
+.game-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+	align-items: center;
+	margin-block: 1rem;
+}
+.game-page input:not([type='checkbox']) {
+	width: 100%;
+	min-height: 44px;
+	padding: 0.65rem;
+	background: var(--background);
+	color: var(--foreground);
+	border: 1px solid var(--border);
+	border-radius: 0.4rem;
+}
+.game-page input[type='checkbox'] {
+	width: 1.5rem;
+	height: 1.5rem;
+	flex-shrink: 0;
+	accent-color: var(--primary);
+}
+.game-page pre {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	max-width: 100%;
+	font-size: 0.9rem;
+	line-height: 1.6;
+}
+.game-page table {
+	width: 100%;
+	border-collapse: collapse;
+}
+.game-page th,
+.game-page td {
+	padding: 0.6rem;
+	border-bottom: 1px solid var(--border);
+	text-align: left;
+}
+.game-live:empty {
+	display: none;
+}
+.game-page details {
+	margin-block: 1rem;
+}
+.game-page summary {
+	cursor: pointer;
+	padding-block: 0.75rem;
+	min-height: 44px;
+}

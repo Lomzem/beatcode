@@ -1,0 +1,41 @@
+{
+	"zone": "beatcode.org",
+	"account_id": "f1b33ffb8d9749f9a5dbbd1d92114c92",
+	"records": [
+		{
+			"type": "CNAME",
+			"name": "clerk.beatcode.org",
+			"content": "frontend-api.clerk.services",
+			"ttl": 1,
+			"proxied": false
+		},
+		{
+			"type": "CNAME",
+			"name": "accounts.beatcode.org",
+			"content": "accounts.clerk.services",
+			"ttl": 1,
+			"proxied": false
+		},
+		{
+			"type": "CNAME",
+			"name": "clkmail.beatcode.org",
+			"content": "mail.nymcy77gy5id.clerk.services",
+			"ttl": 1,
+			"proxied": false
+		},
+		{
+			"type": "CNAME",
+			"name": "clk._domainkey.beatcode.org",
+			"content": "dkim1.nymcy77gy5id.clerk.services",
+			"ttl": 1,
+			"proxied": false
+		},
+		{
+			"type": "CNAME",
+			"name": "clk2._domainkey.beatcode.org",
+			"content": "dkim2.nymcy77gy5id.clerk.services",
+			"ttl": 1,
+			"proxied": false
+		}
+	]
+}

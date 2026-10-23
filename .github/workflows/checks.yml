@@ -1,0 +1,84 @@
+name: Checks
+on:
+  pull_request:
+  workflow_call:
+    outputs:
+      authenticated-result:
+        description: Required trusted authenticated CI result
+        value: ${{ jobs.authenticated.result }}
+permissions: {}
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  checks:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - run: bun run lint
+      - run: bun run format:check
+      - run: bun run build
+      - run: bunx --no-install wrangler deploy --dry-run
+      - run: bunx --no-install playwright install --with-deps chromium firefox webkit
+      - run: bun run test
+      - run: bun test tests/e2e/required.test.ts
+      - run: bunx --no-install vitest run --config tests/e2e/vitest.config.ts
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: browser-failures
+          path: test-results/
+          retention-days: 7
+  fork-policy:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - run: echo 'Fork policy — public checks only. Authenticated CI requires a trusted same-repository branch; forks cannot deploy.'
+  authenticated:
+    if: github.repository == 'Lomzem/beatcode' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    needs: checks
+    environment: ci
+    permissions:
+      contents: read
+    # Shared backend: hold this lock across deploy, setup, all browsers and cleanup.
+    concurrency:
+      group: beatcode-authenticated-dev-ci
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile
+      - run: bunx --no-install playwright install --with-deps chromium firefox webkit
+      - name: Deploy isolated CI app and require authenticated coverage
+        run: bun tests/e2e/run.ts
+        env:
+          CONVEX_CI_DEPLOY_KEY: ${{ secrets.CONVEX_CI_DEPLOY_KEY }}
+          CLERK_CI_SECRET_KEY: ${{ secrets.CLERK_CI_SECRET_KEY }}
+          PUBLIC_CONVEX_URL: ${{ vars.CONVEX_CI_URL }}
+          PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ vars.CLERK_PUBLISHABLE_KEY_DEV }}
+          CLERK_JWT_ISSUER_DOMAIN: ${{ vars.CLERK_JWT_ISSUER_DOMAIN_DEV }}
+          PUBLIC_CLERK_OAUTH_PROVIDERS: github,discord,google
+      # Authenticated diagnostics/state are intentionally never uploaded.

@@ -1,0 +1,48 @@
+name: Deploy production
+on:
+  push:
+    branches: [main]
+permissions: {}
+concurrency:
+  group: production
+  cancel-in-progress: false
+jobs:
+  checks:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/checks.yml
+  deploy:
+    if: github.repository == 'Lomzem/beatcode' && github.ref == 'refs/heads/main' && needs.checks.result == 'success' && needs.checks.outputs.authenticated-result == 'success'
+    needs: checks
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile
+      - name: Deploy backend and build frontend
+        run: bunx --no-install convex deploy --yes --cmd 'bun run build && node scripts/ops/security-headers.mjs' --cmd-url-env-var-name PUBLIC_CONVEX_URL
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+          PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ vars.CLERK_PUBLISHABLE_KEY_PROD }}
+          PUBLIC_CLERK_OAUTH_PROVIDERS: github,discord,google
+          BEATCODE_SITE_URL: ${{ vars.BEATCODE_SITE_URL }}
+      - name: Deploy static frontend
+        run: bunx --no-install wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Check public routes and security headers
+        env:
+          BEATCODE_SITE_URL: ${{ vars.BEATCODE_SITE_URL }}
+        run: node scripts/ops/deployment-smoke.mjs
