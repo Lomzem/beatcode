@@ -44,25 +44,28 @@ it.each(['foreign-checkout', 'copied-entrypoint'] as const)(
 		const dir = mkdtempSync(join(tmpdir(), 'beatcode-production-source-'));
 		try {
 			const approved = join(dir, 'approved');
-			// Frozen reviewed R1 is the independent known-good GO input, not expected output from the subject.
+			// Clone committed current HEAD over local file transport; CI needs no old objects or network.
+			const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 			execFileSync('git', [
 				'clone',
-				'--shared',
-				'--no-checkout',
+				'--depth=1',
 				'--quiet',
-				resolve('.'),
+				pathToFileURL(resolve('.')).href,
 				approved
 			]);
-			execFileSync('git', [
-				'-C',
-				approved,
-				'-c',
-				'core.hooksPath=/dev/null',
-				'checkout',
-				'--quiet',
-				'--detach',
-				'55fe3fa351ca7e9eecc1b234c5c6f5598f55f6a7'
-			]);
+			expect(
+				execFileSync('git', ['-C', approved, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+			).toBe(sourceCommit);
+			expect(
+				execFileSync('git', ['-C', approved, 'rev-parse', '--is-shallow-repository'], {
+					encoding: 'utf8'
+				}).trim()
+			).toBe('true');
+			expect(
+				execFileSync('git', ['-C', approved, 'rev-list', '--count', 'HEAD'], {
+					encoding: 'utf8'
+				}).trim()
+			).toBe('1');
 			symlinkSync(realpathSync(resolve('node_modules')), join(approved, 'node_modules'), 'dir');
 			const manifest = join(dir, 'go.json');
 			const environment = {
@@ -79,8 +82,9 @@ it.each(['foreign-checkout', 'copied-entrypoint'] as const)(
 				JSON.stringify({
 					format: 'beatcode-production-calibration/1',
 					go: true,
-					sourceCommit: '55fe3fa351ca7e9eecc1b234c5c6f5598f55f6a7',
-					sourceSha256: '68700c5c624ea06f2b02a46614d8ccbd0fc5c09771b9c95fc0072aaa2258045a',
+					sourceCommit,
+					// Independently reviewed R2 release bytes; never derive approval from the executing code.
+					sourceSha256: '9b4c3f63a4a2dedf437d4b7dc67720197e47b349c8c3d82fe5afd6ac544f0b3a',
 					decisionPolicySha256: 'd4e0591e44e994a16dd9ad19166349132f963dd39a64688b5509acb2e1b072ca',
 					executionPolicy: 'staged-input-reference-10s-v1',
 					maxJobs: 150,
