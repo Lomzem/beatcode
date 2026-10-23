@@ -57,9 +57,8 @@ createServer(async (request, response) => {
 			{},
 			...headerRules.filter((rule) => rule.pattern.test(pathname)).map((rule) => rule.headers)
 		);
-		const candidates = proxy
-			? [resolve(root, '.' + proxy.to)]
-			: [path, path + '.html', resolve(path, 'index.html')];
+		const assetPath = proxy ? resolve(root, '.' + proxy.to) : path;
+		const candidates = [assetPath, assetPath + '.html', resolve(assetPath, 'index.html')];
 		let file;
 		let body;
 		for (const candidate of candidates) {

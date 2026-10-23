@@ -155,15 +155,30 @@ describe('authenticated game API', () => {
 			(await first.a.query(api.matches.view, { matchId: second.matchId })).ownSubmissions
 		).toHaveLength(1);
 	});
-	it('derives dispatch failure attribution from authenticated execution stage and voids only infrastructure failures', async () => {
-		vi.useFakeTimers();
-		for (const started of [false, true]) {
+	it.each([
+		{ signal: 'none', started: false, voided: true },
+		{ signal: 'none', started: true, voided: false },
+		{ signal: 'unrelated platform', started: true, voided: false },
+		{ signal: 'operator', started: true, voided: true },
+		{ signal: 'same submission platform', started: true, voided: true }
+	])(
+		'attributes dispatch loss with started=$started and signal=$signal',
+		async ({ signal, started, voided }) => {
+			vi.useFakeTimers();
 			const t = convexTest(schema, {
 				...modules,
 				'../../convex/judgeController.ts': () => import('./unavailableJudge.fixture')
 			});
 			const { a, b, matchId, roundId } = await start(t);
 			await t.mutation(internal.ops.setJudging, { enabled: true });
+			if (signal === 'unrelated platform') {
+				// Real preflight failure on another player's sample, outside any contestant window.
+				await b.mutation(api.samples.run, { roundId, source: 'sample', clientRunId: 'unrelated' });
+				const [sample] = await t.mutation(internal.judge._pump, {});
+				await t.action(internal.judgeDispatch._run, sample);
+			}
+			if (signal === 'operator')
+				await t.mutation(internal.ops.declareIncident, { code: 'CONFIRMED_OUTAGE' });
 			const submitted = await a.mutation(api.submissions.submit, {
 				roundId,
 				source: 'dispatch loss',
@@ -171,7 +186,7 @@ describe('authenticated game API', () => {
 			});
 			for (let attempt = 0; attempt < 2; attempt++) {
 				const [job] = await t.mutation(internal.judge._pump, {});
-				if (started) {
+				if (started && !(signal === 'same submission platform' && attempt === 0)) {
 					await t.mutation(internal.judge._claim, job);
 					await t.mutation(internal.judge._noteContestantStart, { ...job, stage: 'run' });
 				}
@@ -191,13 +206,13 @@ describe('authenticated game API', () => {
 			const view = await a.query(api.matches.view, { matchId });
 			expect(view.rounds[0].ownSubmissions[0]).toMatchObject({
 				submissionId: submitted.submissionId,
-				status: started ? 'done' : 'judge_failed',
-				verdict: started ? 'RE' : 'IE'
+				status: voided ? 'judge_failed' : 'done',
+				verdict: voided ? 'IE' : 'RE'
 			});
-			expect(view.rounds[0].outcome).toBe(started ? 'won' : 'void');
-			expect(view.rounds[0].winningSubmissionId).toBe(started ? rival.submissionId : null);
+			expect(view.rounds[0].outcome).toBe(voided ? 'void' : 'won');
+			expect(view.rounds[0].winningSubmissionId).toBe(voided ? null : rival.submissionId);
 		}
-	});
+	);
 	it('purges seven-day private payloads while retaining verdict history and source consent tombstones', async () => {
 		vi.useFakeTimers();
 		const t = harness();
@@ -375,53 +390,72 @@ describe('authenticated game API', () => {
 			a.mutation(api.samples.run, { roundId, source: 'after cap', clientRunId: 'cap-block' })
 		).rejects.toThrow('PAUSED');
 	});
-	it('reports private timing metrics, enforces the strict five-percent threshold, and purges measurements after seven days', async () => {
-		vi.useFakeTimers();
-		const t = harness();
-		const { a, b, matchId, roundId, roomId } = await start(t);
-		await t.mutation(internal.ops.setJudging, { enabled: true });
-		let versionId: FunctionArgs<typeof internal.ops.timingReport>['problemVersionId'] | undefined;
-		for (let i = 0; i < 21; i++) {
-			await a.mutation(api.submissions.submit, {
-				roundId,
-				source: `timing source ${i}`,
-				clientSubmitId: `timing-${i}`
+	it.each([
+		{ timing: 'WA measurements', censored: false },
+		{ timing: 'censored TLE measurements', censored: true }
+	])(
+		'reports private $timing with a fixed scored denominator and seven-day retention',
+		async ({ censored }) => {
+			vi.useFakeTimers();
+			const t = harness();
+			const { a, b, matchId, roundId, roomId } = await start(t);
+			await t.mutation(internal.ops.setJudging, { enabled: true });
+			let versionId: FunctionArgs<typeof internal.ops.timingReport>['problemVersionId'] | undefined;
+			for (let i = 0; i < 21; i++) {
+				await a.mutation(api.submissions.submit, {
+					roundId,
+					source: `timing source ${i}`,
+					clientSubmitId: `timing-${i}`
+				});
+				const [job] = await claimAll(t);
+				versionId = present(job.claim).snapshot.problemVersionId;
+				await t.mutation(internal.judge._complete, {
+					attemptId: job.attemptId,
+					leaseVersion: job.leaseVersion,
+					result: {
+						...result(censored && i < 19 ? 'TLE' : 'WA'),
+						metrics: {
+							testWallMs: [censored ? (i < 19 ? 500 : 450) : i === 1 || i === 20 ? 450 : 100],
+							execObservedMs: [550]
+						}
+					}
+				});
+				if ((!censored && i === 18) || i === 19)
+					expect(
+						await t.query(internal.ops.timingReport, { problemVersionId: versionId })
+					).toMatchObject({
+						scored: i + 1,
+						measured: censored ? 1 : i + 1,
+						nearThreshold: 1,
+						status: 'active'
+					});
+				vi.setSystemTime(Date.now() + 3100);
+			}
+			expect(
+				await t.query(internal.ops.timingReport, { problemVersionId: present(versionId) })
+			).toMatchObject({
+				scored: 20,
+				measured: censored ? 2 : 20,
+				nearThreshold: 2,
+				status: 'calibrating'
 			});
-			const [job] = await claimAll(t);
-			versionId = present(job.claim).snapshot.problemVersionId;
-			await t.mutation(internal.judge._complete, {
-				attemptId: job.attemptId,
-				leaseVersion: job.leaseVersion,
-				result: {
-					...result('WA'),
-					metrics: { testWallMs: [i === 1 || i === 20 ? 450 : 100], execObservedMs: [480] }
-				}
-			});
-			if (i === 18 || i === 19)
-				expect(
-					await t.query(internal.ops.timingReport, { problemVersionId: versionId })
-				).toMatchObject({ scored: i + 1, measured: i + 1, nearThreshold: 1, status: 'active' });
-			vi.setSystemTime(Date.now() + 3100);
+			const publicView = await b.query(api.matches.view, { matchId });
+			expect(JSON.stringify(publicView)).not.toMatch(/testWallMs|execObservedMs|nearThreshold/);
+			await a.mutation(api.matches.concede, { matchId });
+			for (const client of [a, b]) await client.mutation(api.rooms.requestRematch, { roomId });
+			for (const client of [a, b]) await client.mutation(api.decks.set, { roomId, cardIds: deck });
+			await a.mutation(api.rooms.setReady, { roomId, ready: true });
+			await expect(b.mutation(api.rooms.setReady, { roomId, ready: true })).rejects.toThrow(
+				'BAD_STATE'
+			);
+			vi.setSystemTime(Date.now() + 7 * 86400000 + 100);
+			await t.mutation(internal.ops._purge, {});
+			await t.finishAllScheduledFunctions(vi.runAllTimers);
+			expect(
+				await t.query(internal.ops.timingReport, { problemVersionId: present(versionId) })
+			).toMatchObject({ scored: 20, measured: 0, nearThreshold: 0, status: 'calibrating' });
 		}
-		expect(
-			await t.query(internal.ops.timingReport, { problemVersionId: present(versionId) })
-		).toMatchObject({ scored: 20, measured: 20, nearThreshold: 2, status: 'calibrating' });
-		const publicView = await b.query(api.matches.view, { matchId });
-		expect(JSON.stringify(publicView)).not.toMatch(/testWallMs|execObservedMs|nearThreshold/);
-		await a.mutation(api.matches.concede, { matchId });
-		for (const client of [a, b]) await client.mutation(api.rooms.requestRematch, { roomId });
-		for (const client of [a, b]) await client.mutation(api.decks.set, { roomId, cardIds: deck });
-		await a.mutation(api.rooms.setReady, { roomId, ready: true });
-		await expect(b.mutation(api.rooms.setReady, { roomId, ready: true })).rejects.toThrow(
-			'BAD_STATE'
-		);
-		vi.setSystemTime(Date.now() + 7 * 86400000 + 100);
-		await t.mutation(internal.ops._purge, {});
-		await t.finishAllScheduledFunctions(vi.runAllTimers);
-		expect(
-			await t.query(internal.ops.timingReport, { problemVersionId: present(versionId) })
-		).toMatchObject({ scored: 20, measured: 0, nearThreshold: 0, status: 'calibrating' });
-	});
+	);
 	it('requires Clerk identity and creates one private player mapping idempotently', async () => {
 		const t = harness();
 		await expect(t.query(api.players.me, {})).rejects.toThrow('AUTH_INVALID');
@@ -558,6 +592,10 @@ describe('authenticated game API', () => {
 			})
 		).toEqual({ solved: true });
 		await vi.advanceTimersByTimeAsync(200000);
+		// The refreshed balance and its public tick must share one server snapshot.
+		// Otherwise a client can credit elapsed ticks a second time after clock correction.
+		view = await b.query(api.matches.view, { matchId });
+		expect(view.players[0]).toMatchObject({ power: 10, powerTick: 20 });
 		await a.mutation(api.cards.play, { roundId, cardId: 'strict_compile', clientPlayId: 'strict' });
 		await vi.advanceTimersByTimeAsync(2100);
 		await a.mutation(api.cards.play, { roundId, cardId: 'no_paste', clientPlayId: 'paste' });

@@ -41,7 +41,8 @@ const generateHeaders = Effect.gen(function* () {
 		copyFile('build/200.html', 'build/index.html')
 	);
 	yield* fileOperation('write homepage redirect', () =>
-		writeFile('build/_redirects', '/ /prerendered-home.html 200\n')
+		// Target the canonical asset URL so Cloudflare does not redirect / to it.
+		writeFile('build/_redirects', '/ /prerendered-home 200\n')
 	);
 	// Authorize exact inline bootstrap and preference-script bytes from every page.
 	const bootstrapHashes = new Set();

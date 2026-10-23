@@ -101,6 +101,7 @@ export const view = query({
 						.collect()
 				);
 				const round = rounds.at(-1)!;
+				const powerTick = Math.max(0, Math.floor((Date.now() - round.startsAt) / 10000));
 				const version = yield* step(ctx.db.get(round.problemVersionId));
 				const problem = version ? yield* step(ctx.db.get(version.problemId)) : null;
 				const players = yield* Effect.forEach(match.playerIds, (playerId) =>
@@ -118,16 +119,9 @@ export const view = query({
 							playerId,
 							displayName: p!.displayName,
 							power: state
-								? Math.min(
-										10,
-										state.power +
-											Math.max(
-												0,
-												Math.floor((Date.now() - round.startsAt) / 10000) - state.powerTick
-											)
-									)
+								? Math.min(10, state.power + Math.max(0, powerTick - state.powerTick))
 								: 3,
-							powerTick: state?.powerTick ?? 0,
+							powerTick,
 							usedCards: state?.usedCards ?? []
 						};
 					})

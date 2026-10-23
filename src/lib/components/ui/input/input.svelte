@@ -2,11 +2,19 @@
 	import { cn, type WithElementRef } from '#lib/utils.js';
 	import type { HTMLInputAttributes, HTMLInputTypeAttribute } from 'svelte/elements';
 
-	type InputType = Exclude<HTMLInputTypeAttribute, 'file'>;
+	// Svelte includes an open string member; remove it so 'file' cannot bypass the union.
+	type InputType<T = HTMLInputTypeAttribute> = T extends string
+		? string extends T
+			? never
+			: Exclude<T, 'file'>
+		: never;
 
 	type Props = WithElementRef<
-		Omit<HTMLInputAttributes, 'type'> &
-			({ type: 'file'; files?: FileList } | { type?: InputType; files?: undefined })
+		Omit<HTMLInputAttributes, 'type' | 'value'> &
+			(
+				| { type: 'file'; files?: FileList; value?: never }
+				| { type?: InputType; files?: undefined; value?: HTMLInputAttributes['value'] }
+			)
 	>;
 
 	let {
@@ -30,7 +38,6 @@
 		)}
 		type="file"
 		bind:files
-		bind:value
 		{...restProps}
 	/>
 {:else}

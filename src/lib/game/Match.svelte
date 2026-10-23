@@ -3,7 +3,7 @@
 	import { CARD_RULES } from '../../../shared/cards';
 	import { optionalStorage } from '#lib/auth/storage.js';
 	import { resolve } from '$app/paths';
-	import { getContext, onMount, untrack } from 'svelte';
+	import { getContext, onMount } from 'svelte';
 	import { useQuery } from 'convex-svelte';
 	import type { Id } from '../../../convex/_generated/dataModel';
 	import {
@@ -39,7 +39,6 @@
 	let requester: HTMLElement | null = null;
 	let seenEffects = new Set<string>();
 	let previousRound = '';
-	let observedTick = $state(0);
 	let clockMilestones: string[] = [];
 	let retry = $state<{ kind: 'sample' | 'scored'; source: string; key: string } | null>(null);
 	let restoredRequestKey = '';
@@ -65,7 +64,7 @@
 		own && round
 			? Math.min(
 					10,
-					own.power + Math.max(0, Math.floor((now - round.startsAt) / 10000) - observedTick)
+					own.power + Math.max(0, Math.floor((now - round.startsAt) / 10000) - own.powerTick)
 				)
 			: 0
 	);
@@ -98,12 +97,6 @@
 			viewport?.removeEventListener('resize', updateViewport);
 			window.removeEventListener('resize', updateViewport);
 		};
-	});
-	$effect(() => {
-		if (match) {
-			const at = untrack(() => game.state.serverNow);
-			observedTick = Math.floor((at - match.round.startsAt) / 10000);
-		}
 	});
 	$effect(() => {
 		if (!match) return;

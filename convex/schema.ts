@@ -260,7 +260,7 @@ export default defineSchema({
 		actor: v.optional(v.id('players')),
 		refId: v.optional(v.string()),
 		detail: v.string()
-	}),
+	}).index('by_kind', ['kind']),
 	hostPasses: defineTable({
 		codeHash: v.string(),
 		note: v.string(),
@@ -289,7 +289,8 @@ export default defineSchema({
 		lastSeen: v.object({ host: v.number(), guest: v.optional(v.number()) })
 	})
 		.index('by_host', ['hostId'])
-		.index('by_guest', ['guestId']),
+		.index('by_guest', ['guestId'])
+		.index('by_status', ['status']),
 	players: defineTable({
 		tokenIdentifier: v.string(),
 		displayName: v.string(),

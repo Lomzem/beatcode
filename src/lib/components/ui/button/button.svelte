@@ -51,6 +51,7 @@
 		type = 'button',
 		disabled,
 		children,
+		onclick,
 		...restProps
 	}: ButtonProps = $props();
 </script>
@@ -66,6 +67,14 @@
 		role={disabled ? 'link' : undefined}
 		tabindex={disabled ? -1 : undefined}
 		{...restProps}
+		onclick={(event) => {
+			if (disabled) {
+				event.preventDefault();
+				event.stopPropagation();
+				return;
+			}
+			return onclick?.call(event.currentTarget, event);
+		}}
 	>
 		{@render children?.()}
 	</a>
@@ -76,6 +85,7 @@
 		class={cn(buttonVariants({ variant, size }), className)}
 		{type}
 		{disabled}
+		{onclick}
 		{...restProps}
 	>
 		{@render children?.()}

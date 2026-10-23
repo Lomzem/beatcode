@@ -83,8 +83,8 @@ it.each(['foreign-checkout', 'copied-entrypoint'] as const)(
 					format: 'beatcode-production-calibration/1',
 					go: true,
 					sourceCommit,
-					// Independently reviewed R2 release bytes; never derive approval from the executing code.
-					sourceSha256: '9b4c3f63a4a2dedf437d4b7dc67720197e47b349c8c3d82fe5afd6ac544f0b3a',
+					// Independently reviewed offline release bytes; never derive approval from executing code.
+					sourceSha256: '5c67419daff7738c1a3c6587a2958b920e832f506d227f0a62ec76bb968cffe6',
 					decisionPolicySha256: 'd4e0591e44e994a16dd9ad19166349132f963dd39a64688b5509acb2e1b072ca',
 					executionPolicy: 'staged-input-reference-10s-v1',
 					maxJobs: 150,

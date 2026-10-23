@@ -13,6 +13,7 @@ test('public content and navigation arrive in the built HTML before JavaScript',
 		['/privacy', 'Privacy']
 	]) {
 		await page.goto(path);
+		expect(new URL(page.url()).pathname).toBe(path);
 		await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
 		await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
 		if (path === '/')
