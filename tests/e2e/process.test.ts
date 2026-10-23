@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { Effect } from 'effect';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -161,3 +161,59 @@ it.each([0, 1])(
 	},
 	10000
 );
+
+it('forwards a fixed card-failure diagnostic while suppressing injected private fields', async () => {
+	const record = {
+		card: 'light_mode',
+		direction: 'host-to-guest',
+		mutation: true,
+		actual: 'light_mode',
+		ack: 'OK',
+		sourceSocket: true,
+		receiverSocket: true,
+		query: true,
+		incoming: true,
+		seen: true,
+		remainingMs: 19000,
+		count: 1,
+		visible: true,
+		elapsedMs: 250
+	};
+	const prefix = 'CI card failure: ';
+	const safe = prefix + JSON.stringify(record);
+	const lines = [
+		safe,
+		...Object.entries({
+			rawFrame: 'synthetic-private',
+			error: 'synthetic-error',
+			jwt: 'synthetic.jwt.canary',
+			email: 'canary@example.invalid',
+			accountId: 'user_synthetic_private'
+		}).map(([key, value]) => prefix + JSON.stringify({ ...record, [key]: value })),
+		prefix + JSON.stringify({ ...record, canary: 'synthetic-private' }),
+		prefix + JSON.stringify({ ...record, ack: 'synthetic-private' }),
+		prefix + JSON.stringify({ ...record, actual: 'user_synthetic_private' }),
+		prefix + JSON.stringify({ ...record, count: 'canary@example.invalid' }),
+		prefix + JSON.stringify({ ...record, elapsedMs: Infinity }),
+		prefix + '{"rawFrame":"synthetic-private"}',
+		prefix + JSON.stringify({ ...record, ack: ['OK'] }),
+		prefix + JSON.stringify({ ...record, direction: ['host-to-guest'] }),
+		prefix + 'synthetic-private-error'
+	];
+	const emitted: string[] = [];
+	const output = vi.spyOn(console, 'info').mockImplementation((line: unknown) => {
+		emitted.push(String(line));
+	});
+	try {
+		await Effect.runPromise(
+			runCommand(
+				['node', '-e', `process.stdout.write(${JSON.stringify(lines.join('\n') + '\n')})`],
+				'Diagnostic child failed',
+				process.env
+			)
+		);
+		expect(emitted).toEqual([safe]);
+	} finally {
+		output.mockRestore();
+	}
+});

@@ -1,4 +1,5 @@
 import { Effect, Data } from 'effect';
+import { safeCardFailure } from './card-diagnostics';
 import { spawn } from 'node:child_process';
 import { readdir, readFile } from 'node:fs/promises';
 
@@ -24,13 +25,19 @@ export const runCommand = (
 				pending += String(chunk);
 				const lines = pending.split('\n');
 				pending = lines.pop()!;
-				for (const line of lines)
+				for (const line of lines) {
+					const diagnostic = safeCardFailure(line);
+					if (diagnostic) {
+						console.info(diagnostic);
+						continue;
+					}
 					if (
 						/^(?:CI presence stopped: \d+|CI presence: \d+ emitted \d+ accepted \d+ failed|CI auth flags: [01]{7}|CI auth: (?:entry|portal|email|code|return)|CI progress: (?:chromium|firefox|webkit)-(?:320|768|1280) (?:host|guest|new) (?:create|signin|nickname|pass|saved)|CI case: (?:chromium|firefox|webkit)-(?:320|768|1280) (?:passed|failed|timedOut|skipped|interrupted)(?: line \d+)?|Authenticated coverage: \d+ passed, \d+ failed\/skipped; required minimum 36\.)$/.test(
 							line
 						)
 					)
 						console.info(line);
+				}
 			});
 			let finished = false;
 			const exited = new Promise<void>((accept) =>
