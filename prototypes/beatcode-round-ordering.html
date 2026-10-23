@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Beatcode · throwaway round ordering prototype</title>
+<style>
+:root{font-family:system-ui,sans-serif;color:#243142;font-size:14px;color-scheme:light}*{box-sizing:border-box}body{margin:0;background:transparent}main{max-width:1180px;margin:auto;padding:16px}h1{font-size:24px;margin:8px 0}h2{font-size:18px;margin:0 0 12px}h3{font-size:15px;margin:0 0 8px}p{line-height:1.55;margin:8px 0}.muted,small{color:#5b6878}.tag{font-size:12px;font-weight:700;color:#345b96;letter-spacing:.04em}section,.panel{padding:16px;background:#fff;border:1px solid #d9e0e8;border-radius:8px;margin:12px 0}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.grid>.panel{margin:0}.wide{grid-column:1/-1}button,select,textarea,input{font:inherit}button,select{padding:8px 10px;border:1px solid #bcc9d9;background:#f7f9fc;border-radius:5px;color:#243142}button{cursor:pointer}button:hover{background:#eaf0fa}button:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #527ec0;outline-offset:2px}button[aria-selected=true]{background:#345b96;color:white}button:disabled{opacity:.5;cursor:default}.actions,.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}dl{display:grid;grid-template-columns:145px 1fr;gap:7px;margin:0}dt{color:#5b6878}dd{margin:0;overflow-wrap:anywhere}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:8px;border-bottom:1px solid #e4e9f0;vertical-align:top;overflow-wrap:anywhere}.scroll{overflow:auto}textarea{width:100%;min-height:88px;padding:10px;border:1px solid #c9d2df;border-radius:5px;resize:vertical}.notice{background:#edf3fd;border-left:3px solid #345b96;padding:12px;line-height:1.5}ul,ol{padding-left:22px;line-height:1.6}.steps{display:grid;gap:8px}.steps button{text-align:left}code{font-size:12px;white-space:pre-wrap}#message{min-height:42px}.light{background:#fffbe8}.contrast{background:#162331;color:#fff}.contrast small,.contrast dt{color:#cfdaeb}@media(max-width:720px){.grid{grid-template-columns:1fr}dl{grid-template-columns:120px 1fr}main{padding:8px}h1{font-size:21px}}
+</style>
+</head>
+<body><main>
+<span class="tag">THROWAWAY · LOCAL LOGIC PROTOTYPE · NO BACKEND</span>
+<h1>Who wins when verdicts arrive out of order?</h1>
+<p>Question: do earliest-correct-submission ordering, provisional verdicts, and round-scoped effects support a clear, recoverable interaction without letting queue speed select a winner? Drive this small in-memory round, compare the player projection with privileged judging state, and inspect what survives recovery. Time and verdicts are manually supplied; this is a planning artifact, not a secure judge or validated backend.</p>
+<div id="message" class="notice" role="status" aria-live="polite"></div>
+<section><h2>Current state</h2><div class="grid">
+<div class="panel"><h3>Round authority · privileged/debug</h3><div id="round"></div></div>
+<div class="panel"><h3>Player perspective</h3><label>Viewing as <select id="perspective"><option>A</option><option>B</option></select></label><div id="player"></div></div>
+<div class="panel wide"><h3>Authoritative submission sequence · privileged/debug</h3><p class="muted">Hidden verdicts and immutable source/restriction snapshots below are for planning inspection only. They are excluded from the player projection.</p><div id="jobs" class="scroll"></div></div>
+<div class="panel wide"><h3>Power, charges and admitted card effects · privileged/debug</h3><div id="effects"></div></div>
+</div></section>
+<section><h2>Free play</h2><p class="muted">Every action is available to try; illegal actions explain their rejection. No automatic timer. A reset creates a new round identity; “deliver old callback” retains the last submitted job identity across resets.</p>
+<div class="actions" id="global"></div><div class="grid" id="controls"></div>
+</section>
+<section><h2>Guided walkthroughs</h2><p>Selecting a tab starts a fresh round. Press the numbered steps in order. Free play remains available; restart the tab if you diverge.</p><div class="tabs" id="tabs" role="tablist" aria-label="Round scenarios"></div><div id="walkthrough" role="tabpanel"></div></section>
+<section><h2>Decision captured by this artifact</h2><p>Use authoritative admission order, immutable restriction snapshots, private later passing verdicts, and a closed settlement phase. Award the lowest passing sequence only after every earlier eligible job is final. A 90-second ceiling that leaves a possible earlier winner unresolved voids the round; it never promotes a faster queue result. Recovery reconstructs effects from round authority and keeps editing state intact.</p><p>Policy tensions: closing admission when any job passes is itself an indirect correctness signal even when the verdict stays private. Neutral “settling” language limits detail but cannot eliminate that signal. The editor decision allows challenge-gated sample runs, while the card contract says samples remain usable; this artifact follows the more specific card contract. Strict compiler flags remain an unresolved architecture contract: a strict verdict here is manually supplied.</p><p class="muted">Scope: one round, not a match implementation. Replacement/abort policy, identity authorization, real compilation, local source caching and disconnect forfeits are not simulated. “Recover” reconstructs a view from retained authority in this tab; it does not survive a real page reload. No network, storage, editor library, tests, or production integration.</p></section>
+</main>
+<script>
+'use strict';
+// Pure in-memory domain module. No DOM, clocks, storage, or IO.
+const Round = (() => {
+  const cards = {
+    light:{name:'Light mode',cost:1,duration:20,enforcement:'Honor-based palette'},
+    paste:{name:'No paste',cost:2,duration:20,enforcement:'Honor-based paste/drop gate'},
+    hints:{name:'No hints',cost:2,duration:20,enforcement:'Honor-based assistance gate'},
+    teaser:{name:'Brain teaser',cost:3,duration:15,enforcement:'Server-issued addition gate'},
+    strict:{name:'Strict compile',cost:4,duration:30,enforcement:'Judge-enforced next admission'}
+  };
+  function initial(epoch=1) {
+    return {epoch,now:0,deadline:600,phase:'active',next:1,jobs:[],effects:[],winner:null,notice:'Round opened. Three power each; 600 seconds remain.',players:Object.fromEntries(['A','B'].map(p=>[p,{power:3,lastTick:0,lastPlay:-99,lastSubmit:-99,deck:p==='A'?['light','paste','hints','strict']:['light','paste','teaser','strict'],used:[],source:'// '+p+' working C++ source',selection:'cursor at end',undo:0,connected:true,contrast:false,recoveries:0,lastAnswer:-99}]))};
+  }
+  function settle(s) {
+    const passes=s.jobs.filter(j=>j.verdict==='pass').sort((a,b)=>a.seq-b.seq);
+    const candidate=passes[0];
+    if(candidate) {
+      s.phase='settling';
+      if(!s.jobs.some(j=>j.seq<candidate.seq&&j.verdict==='pending')) {
+        s.phase='resolved';s.winner=candidate.player;s.notice=`${candidate.player} wins with earliest passing submission #${candidate.seq}.`;
+      }
+    } else if(s.now>=s.deadline) {
+      s.phase=s.jobs.some(j=>j.verdict==='pending')?'settling':'draw';
+      if(s.phase==='draw')s.notice='Deadline passed; no accepted submission. Round drawn.';
+    }
+    if(['resolved','draw','void'].includes(s.phase))s.effects=[];
+  }
+  function reduce(state,a) {
+    if(a.type==='reset')return initial(state.epoch+1);
+    const s=structuredClone(state), p=s.players[a.player];
+    const reject=why=>{s.notice='Rejected: '+why;return s;};
+    if(a.type==='advance') {
+      s.now+=a.seconds;
+      for(const v of Object.values(s.players)) {
+        const until=Math.min(s.now,s.deadline), ticks=Math.floor((until-v.lastTick)/10);
+        if(s.phase==='active'&&ticks>0)v.power=Math.min(10,v.power+ticks);
+        // Ticks at cap are consumed, never banked. Closed admission freezes power.
+        if(ticks>0)v.lastTick+=ticks*10;
+      }
+      s.effects=s.effects.filter(e=>e.until>s.now);
+      const candidate=s.jobs.filter(j=>j.verdict==='pass').sort((x,y)=>x.seq-y.seq)[0];
+      const blockers=s.jobs.filter(j=>j.verdict==='pending'&&(!candidate||j.seq<candidate.seq));
+      if(['active','settling'].includes(s.phase)&&blockers.some(j=>s.now>=j.ceiling)) {
+        s.phase='void';s.effects=[];s.notice='Infrastructure ceiling reached with a possible winner unresolved. Void round; no round slot consumed. Match policy allows one replacement, then abort.';
+      } else if(['active','settling'].includes(s.phase)) {s.notice=`Authoritative time advanced to ${s.now}s.`;settle(s);}
+      return s;
+    }
+    if(a.type==='verdict'||a.type==='retry') {
+      const j=s.jobs.find(j=>j.id===a.id);
+      if(!j||j.epoch!==s.epoch)return reject('stale callback belongs to another round or unknown job.');
+      if(!['active','settling'].includes(s.phase)||j.verdict!=='pending')return reject('job or round already settled.');
+      if(a.type==='retry') {
+        if(j.retries||s.now>=j.ceiling){s.phase='void';s.effects=[];s.notice='Infrastructure retry exhausted. Void round; no competitive winner.';return s;}
+        j.retries++;s.notice=`Retry #${j.seq} admitted with identical source, restrictions, sequence and ceiling.`;return s;
+      }
+      j.verdict=a.result;s.notice=`Private judge callback recorded for #${j.seq}.`;
+      settle(s);return s;
+    }
+    if(a.type==='edit') {p.source=a.source;p.undo++;s.notice=`${a.player} edited source; admitted jobs keep their snapshot.`;return s;}
+    if(a.type==='presence') {p.connected=!p.connected;s.notice=`${a.player} ${p.connected?'reconnected':'disconnected'}; round time continues.`;return s;}
+    if(a.type==='recover') {p.connected=true;p.recoveries++;s.notice=`${a.player} recovered the current round view. Source, selection and undo preserved; effects recomputed from authority.`;return s;}
+    if(a.type==='contrast') {p.contrast=!p.contrast;s.notice='Accessibility palette updated; Light mode exemption disclosed.';return s;}
+    if(a.type==='sample') {s.notice='Sample run allowed; no scored admission, no charge consumed, no winner or competitive verdict.';return s;}
+    if(a.type==='answer') {
+      const e=s.effects.find(e=>e.target===a.player&&e.card==='teaser');
+      if(!e)return reject('no active Brain teaser.');
+      if(s.now-p.lastAnswer<1)return reject('one challenge answer per second.');
+      p.lastAnswer=s.now;
+      if(Number(a.answer)!==e.answer)return reject('incorrect answer; gate expires naturally.');
+      s.effects=s.effects.filter(x=>x!==e);s.notice='Correct addition answer; scored submissions unlocked.';return s;
+    }
+    if(!p)return reject('unknown player.');
+    if(s.phase!=='active'||s.now>=s.deadline)return reject('admission and card play are closed while this round settles or has ended.');
+    if(!p.connected)return reject('reconnect before sending an action.');
+    if(a.type==='play') {
+      const c=cards[a.card], target=a.player==='A'?'B':'A';
+      if(!c||!p.deck.includes(a.card))return reject('card is outside this locked four-card deck.');
+      if(p.used.includes(a.card))return reject('card charge already used this round.');
+      if(p.power<c.cost)return reject(`insufficient power: need ${c.cost}, have ${p.power}.`);
+      if(s.now-p.lastPlay<2)return reject('two-second global card cooldown.');
+      if(s.effects.some(e=>e.target===target&&e.card===a.card))return reject('same named effect cannot stack.');
+      p.power-=c.cost;p.used.push(a.card);p.lastPlay=s.now;
+      s.effects.push({card:a.card,from:a.player,target,until:s.now+c.duration,...(a.card==='teaser'?{question:'23 + 41',answer:64}:{})});
+      s.notice=`${a.player} played ${c.name} on ${target}.`;return s;
+    }
+    if(a.type==='submit') {
+      if(s.effects.some(e=>e.target===a.player&&e.card==='teaser'))return reject('Brain teaser gates new scored submissions; editor and samples remain usable.');
+      if(s.jobs.some(j=>j.player===a.player&&j.verdict==='pending'))return reject('one outstanding judging job per player.');
+      if(s.now-p.lastSubmit<3)return reject('three-second submission cooldown.');
+      const strict=s.effects.some(e=>e.target===a.player&&e.card==='strict');
+      const seq=s.next++;
+      s.jobs.push({id:`${s.epoch}:${seq}`,epoch:s.epoch,seq,player:a.player,at:s.now,ceiling:s.now+90,verdict:'pending',strict,source:p.source,retries:0});
+      if(strict)s.effects=s.effects.filter(e=>!(e.target===a.player&&e.card==='strict'));
+      p.lastSubmit=s.now;s.notice=`${a.player} admitted at authoritative sequence #${seq}; immutable source and restriction snapshot captured.`;return s;
+    }
+    return reject('unknown action.');
+  }
+  function playerView(s,who) {
+    const mine=s.players[who],other=who==='A'?'B':'A', final=['resolved','draw','void'].includes(s.phase);
+    return {phase:s.phase==='settling'?'Settling · new submissions and cards paused':s.phase,winner:s.winner||'None',ownSource:mine.source,ownUndo:mine.undo,selection:mine.selection,power:mine.power,opponentPower:s.players[other].power,opponentPending:!final&&s.jobs.some(j=>j.player===other&&['pending','pass'].includes(j.verdict)),ownStatus:s.jobs.filter(j=>j.player===who).map(j=>`#${j.seq}: ${j.verdict==='pending'?(final?'Not needed for settlement':'Judging'):(!final&&j.verdict==='pass')?'Judging':j.verdict==='pass'?'Accepted':'Failed'}`).join(' · ')||'No submissions',effects:s.effects.filter(e=>e.target===who).map(e=>({...e,answer:undefined})),contrast:mine.contrast};
+  }
+  return {initial,reduce,playerView,cards};
+})();
+// Thin DOM shell. The simulated authority above is deliberately inspectable.
+const $=id=>document.getElementById(id), esc=x=>String(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let state=Round.initial(),oldCallback=null,scenarioIndex=0,stepIndex=0;
+const act=(type,player,extra={})=>({type,player,...extra}),time=seconds=>act('advance',null,{seconds});
+function dispatch(a){
+  if(a.type==='judgeLatest') {const j=state.jobs.filter(j=>j.player===a.player&&j.verdict==='pending').at(-1);a={type:a.retry?'retry':'verdict',id:j?.id,result:a.result};}
+  if(a.type==='old')a={type:'verdict',id:oldCallback,result:'pass'};
+  const before=state.jobs.length;state=Round.reduce(state,a);
+  if(state.jobs.length>before)oldCallback=state.jobs.at(-1).id;
+  render();
+}
+function fields(entries){return '<dl>'+entries.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')+'</dl>';}
+function button(label,a){const b=document.createElement('button');b.textContent=label;b.onclick=()=>dispatch(typeof a==='function'?a():a);return b;}
+const judge=(p,result)=>act('judgeLatest',p,{result});
+const play=(p,card)=>act('play',p,{card});
+const scenarios=[
+['Later verdict first','B passes first. Both players see a neutral settlement hold; the privileged view alone identifies the provisional result.',[
+['A submits first',act('submit','A')],['B submits second',act('submit','B')],['B passes before A finishes',judge('B','pass')],['Try a card during the hold',play('A','light')]]],
+['Earlier wrong answer','B’s private passing result can stand only after A’s earlier job fails.',[
+['A submits',act('submit','A')],['B submits',act('submit','B')],['B passes',judge('B','pass')],['A returns wrong answer; B wins',judge('A','fail')]]],
+['Earlier pass wins','Later return time does not change authoritative admission order.',[
+['A submits #1',act('submit','A')],['B submits #2',act('submit','B')],['B passes first',judge('B','pass')],['A passes later; A wins',judge('A','pass')]]],
+['Timeout & eligible jobs','Jobs admitted at 599s remain eligible after 600s. An unresolved earlier job at its 90-second ceiling voids the round.',[
+['Advance to 599 seconds',time(599)],['A submits before deadline',act('submit','A')],['B submits before deadline',act('submit','B')],['Reach the deadline',time(1)],['B passes after deadline',judge('B','pass')],['Try another scored submission',act('submit','B')],['Reach A’s 90-second ceiling; void',time(89)]]],
+['Stale callback','Round identity is part of every job. Reusing sequence #1 in a new round cannot reuse an old result.',[
+['A submits in the old round',act('submit','A')],['Reset to a new round identity',act('reset')],['Deliver the old passing callback',act('old')],['B submits in the new round',act('submit','B')],['B passes; new round resolves',judge('B','pass')]]],
+['Power & reused card','Rejected plays consume nothing. Regeneration ticks at cap are discarded.',[
+['Try Strict compile with only 3 power',play('A','strict')],['Play Light mode',play('A','light')],['Wait out global card cooldown',time(2)],['Try Light mode again',play('A','light')],['Advance to 100s; cap reaches 10',time(98)],['Spend 4 on Strict compile',play('A','strict')],['Advance 1s; no banked refill',time(1)]]],
+['Strict admission snapshot','A card arriving after admission cannot rewrite that job. The next eligible admission consumes Strict compile, and retries retain it.',[
+['B queues an unrestricted job',act('submit','B')],['Earn the fourth power',time(10)],['A plays Strict compile on B',play('A','strict')],['B’s existing job fails normally',judge('B','fail')],['B runs a sample; restriction remains',act('sample','B')],['B admits the next job; strict captured',act('submit','B')],['Edit B’s source after admission',act('edit','B',{source:'// Changed after admission; queued source stays frozen'})],['Retry infrastructure failure with same snapshot',act('judgeLatest','B',{retry:true})],['Let live effect time expire',time(31)],['B passes strict judging; snapshot still strict',judge('B','pass')]]],
+['Recovery & active effects','Recovery retains typed changes, undo and selection, and reconstructs remaining effects. It must not restore stale assistance defaults.',[
+['A applies No hints to B',play('A','hints')],['B edits source',act('edit','B',{source:'int main() { /* typed while hints disabled */ }'})],['Advance 3s',time(3)],['A also applies Light mode',play('A','light')],['B disconnects',act('presence','B')],['Advance 5s; timer continues',time(5)],['B recovers with both effects active',act('recover','B')],['B enables high contrast; palette exempt',act('contrast','B')],['B applies Brain teaser to A',play('B','teaser')],['A sample remains usable',act('sample','A')],['A scored submission is gated',act('submit','A')],['A answers 23 + 41',act('answer','A',{answer:64})],['Advance 15s; visual effects expire',time(15)],['B recovers without stale effect restoration',act('recover','B')]]]
+];
+function render(){
+  $('message').textContent=state.notice;
+  const candidate=state.jobs.filter(j=>j.verdict==='pass').sort((a,b)=>a.seq-b.seq)[0];
+  $('round').innerHTML=fields([['Round identity',state.epoch],['Phase',state.phase],['Clock',`${state.now}s elapsed · ${Math.max(0,state.deadline-state.now)}s before deadline`],['Admission',state.phase==='active'?'Open strictly before 600s':'Closed'],['Next sequence',state.next],['Private result',candidate?`Passing #${candidate.seq} (${candidate.player})`:'No passing verdict'],['Provisional hold',state.phase==='settling'&&candidate?state.jobs.filter(j=>j.seq<candidate.seq&&j.verdict==='pending').map(j=>'Await #'+j.seq).join(', '):'None'],['Resolved winner',state.winner||'None'],['Old callback retained',oldCallback||'None']]);
+  for(const p of ['A','B'])$('source'+p).value=state.players[p].source;
+  const who=$('perspective').value,v=Round.playerView(state,who), effects=v.effects.map(e=>`${Round.cards[e.card].name}: ${e.until-state.now}s · ${Round.cards[e.card].enforcement}${e.card==='light'&&v.contrast?' · high-contrast exempt':''}${e.question?' · '+e.question+' = ?':''}`).join('; ')||'None';
+  $('player').className=v.contrast?'contrast':v.effects.some(e=>e.card==='light')?'light':'';
+  $('player').innerHTML='<p class="muted">Player projection only · no opponent source or private correctness.</p>'+fields([['Round',v.phase],['Own submissions',v.ownStatus],['Opponent',v.opponentPending?'Judging':'No pending job'],['Power',`${v.power} own · ${v.opponentPower} opponent`],['Opponent presence',state.players[who==='A'?'B':'A'].connected?'Connected':'Disconnected'],['Your card charges',state.players[who].deck.map(c=>Round.cards[c].name+': '+(state.players[who].used.includes(c)?'used':'ready')).join(' · ')],['Effects on you',effects],['Effects on opponent',state.effects.filter(e=>e.target!==who).map(e=>Round.cards[e.card].name+': '+(e.until-state.now)+'s').join(' · ')||'None'],['Word suggestions',v.effects.some(e=>e.card==='hints')?'Off; bracket/indent helpers off; syntax and undo kept':'On'],['Paste/drop',v.effects.some(e=>e.card==='paste')?'Blocked; typing/copy/navigation kept':'Available'],['Own source',v.ownSource],['Editing state',`${v.selection} · ${v.ownUndo} undo entries`],['Winner',v.winner]]);
+  $('jobs').innerHTML=state.jobs.length?'<table><thead><tr><th>Sequence / job</th><th>Player / admission</th><th>Private verdict</th><th>Immutable restriction</th><th>Source snapshot</th><th>Settlement bound</th></tr></thead><tbody>'+state.jobs.map(j=>`<tr><td>#${j.seq}<br>${esc(j.id)}</td><td>${j.player} · ${j.at}s</td><td>${j.verdict}</td><td>${j.strict?'Strict ISO C++ conformance':'Normal compiler contract'}</td><td><code>${esc(j.source)}</code></td><td>${j.ceiling}s · ${j.retries}/1 retries</td></tr>`).join('')+'</tbody></table>':'<p>No admitted jobs. Each player may have one outstanding job.</p>';
+  $('effects').innerHTML='<div class="grid">'+Object.entries(state.players).map(([p,x])=>'<div>'+fields([[`${p} power`,`${x.power}/10 · last accounted tick ${x.lastTick}s`],['Locked deck',x.deck.map(c=>`${Round.cards[c].name} (${x.used.includes(c)?'used':'ready'}, ${Round.cards[c].cost} power)`).join(' · ')],['Presence',`${x.connected?'Connected':'Disconnected'} · ${x.recoveries} recoveries`]])+'</div>').join('')+'</div><p>'+ (state.effects.map(e=>`${e.from} → ${e.target}: ${Round.cards[e.card].name} · ${e.until-state.now}s left · ${Round.cards[e.card].enforcement}`).join('<br>')||'No active effects.')+'</p>';
+  renderWalkthrough();
+}
+function renderWalkthrough(){
+  const [name,description,steps]=scenarios[scenarioIndex];
+  $('walkthrough').innerHTML=`<h3>${esc(name)}</h3><p>${esc(description)}</p><div class="steps"></div>`;
+  const host=$('walkthrough').querySelector('.steps');
+  steps.forEach(([label,a],i)=>{const b=button(`${i<stepIndex?'✓ ':''}${i+1}. ${label}`,a);b.disabled=i!==stepIndex;b.onclick=()=>{stepIndex++;dispatch(a);};host.append(b);});
+  if(stepIndex===steps.length)host.insertAdjacentHTML('beforeend','<p>Walkthrough complete. Inspect both perspectives or continue in free play.</p>');
+  [...$('tabs').children].forEach((b,i)=>{b.setAttribute('aria-selected',String(i===scenarioIndex));});
+}
+$('perspective').onchange=render;
+[['New round / reset',act('reset')],['Advance 1 second',time(1)],['Advance 2 seconds',time(2)],['Advance 10 seconds',time(10)],['Advance 90 seconds',time(90)],['Reach deadline',()=>time(Math.max(0,600-state.now))],['Deliver old passing callback',act('old')]].forEach(([label,a])=>$('global').append(button(label,a)));
+for(const p of ['A','B']){
+  const box=document.createElement('div');box.className='panel';box.innerHTML=`<h3>Player ${p}</h3><label>Working source (illustration only)<textarea id="source${p}">// ${p} working C++ source</textarea></label><div class="actions"></div>`;
+  const host=box.querySelector('.actions');
+  [['Keep typed source',()=>act('edit',p,{source:$('source'+p).value})],['Submit scored solution',act('submit',p)],['Run sample',act('sample',p)],['Passing verdict',judge(p,'pass')],['Wrong answer / compile error',judge(p,'fail')],['Retry infrastructure failure',act('judgeLatest',p,{retry:true})],['Disconnect / reconnect',act('presence',p)],['Recover current view',act('recover',p)],['Toggle high contrast',act('contrast',p)],['Answer challenge: 64',act('answer',p,{answer:64})],['Wrong challenge answer',act('answer',p,{answer:0})],...Object.entries(Round.cards).map(([key,c])=>[`Play ${c.name} · ${c.cost} power`,play(p,key)])].forEach(([label,a])=>host.append(button(label,a)));
+  $('controls').append(box);
+}
+scenarios.forEach(([name],i)=>{const b=document.createElement('button');b.textContent=name;b.setAttribute('role','tab');b.onclick=()=>{scenarioIndex=i;stepIndex=0;dispatch(act('reset'));};$('tabs').append(b);});
+render();
+</script></body></html>
