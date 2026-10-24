@@ -10,6 +10,8 @@
 	let selected = $state('1');
 	const selectCase = new URLSearchParams(location.search).has('select');
 	const fileCase = new URLSearchParams(location.search).has('file');
+	const checkboxCase = new URLSearchParams(location.search).has('checkbox');
+	let agreed = $state(false);
 	const inlineSelectCase = new URLSearchParams(location.search).has('portal-disabled-select');
 	const shortOptions = ['First', 'Second', 'Third', 'Fourth'].map((label) => ({
 		value: label.toLowerCase(),
@@ -44,6 +46,11 @@
 		<label for="text">Description</label>
 		<Input id="text" bind:value={text} />
 		<output aria-label="Description value">{text}</output>
+	{:else if checkboxCase}
+		<Input id="agree" type="checkbox" name="agree" value="yes" bind:checked={agreed} />
+		<label for="agree">Share solution</label>
+		<output aria-label="Share state">{agreed ? 'Shared' : 'Private'}</output>
+		<button onclick={() => (agreed = !agreed)}>Toggle share</button>
 	{:else if selectCase}
 		<Select.Root type="single" bind:value={selected}>
 			<Select.Trigger aria-label="Problem">Problem {selected}</Select.Trigger>
