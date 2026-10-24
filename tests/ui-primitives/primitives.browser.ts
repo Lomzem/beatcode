@@ -78,7 +78,8 @@ test('long select exposes pointer scroll controls and keeps end options reachabl
 	await trigger.click();
 	const down = page.locator('[data-slot="select-scroll-down-button"]');
 	await expect(down).toBeVisible();
-	// Preserve baseline diagnostics for the unchanged portaled listbox; keyboard access is exercised below.
+	// The default portal places the listbox outside main, so axe reports `region`; the portal-disabled
+	// select test covers the inline listbox. Keyboard access is exercised below.
 	await testInfo.attach('open-select-accessibility.json', {
 		body: JSON.stringify((await new AxeBuilder({ page }).analyze()).violations, null, 2),
 		contentType: 'application/json'
@@ -98,5 +99,35 @@ test('long select exposes pointer scroll controls and keeps end options reachabl
 	await page.keyboard.press('End');
 	await page.keyboard.press('Enter');
 	await expect(page.getByLabel('Selected problem')).toHaveText('30');
+	await expect(trigger).toBeFocused();
+});
+
+test('portal-disabled select passes axe at default height; End brings the last option fully into view in a short viewport', async ({
+	page
+}, testInfo) => {
+	await page.goto('/?portal-disabled-select');
+	const trigger = page.getByRole('combobox', { name: 'Short select', exact: true });
+	await trigger.press('Enter');
+	const last = page.getByRole('option', { name: 'Fourth', exact: true });
+	await expect(last).toBeVisible();
+	expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+	await page.keyboard.press('Escape');
+	await expect(trigger).toBeFocused();
+
+	// CSS viewport height equivalent to a 1024px-tall window at 400% zoom (not real browser zoom);
+	// the options must overflow the listbox.
+	await page.setViewportSize({ width: page.viewportSize()!.width, height: 256 });
+	await trigger.press('Enter');
+	await expect(last).not.toBeInViewport({ ratio: 1 });
+	await page.keyboard.press('End');
+	await expect(last).toBeInViewport({ ratio: 1 });
+	// Evidence only: axe may flag the overflowing listbox scroll container here; keyboard reach is
+	// asserted above instead of a diagnostic shape.
+	await testInfo.attach('short-viewport-select-accessibility.json', {
+		body: JSON.stringify((await new AxeBuilder({ page }).analyze()).violations, null, 2),
+		contentType: 'application/json'
+	});
+	await page.keyboard.press('Enter');
+	await expect(page.getByLabel('Selected short option')).toHaveText('fourth');
 	await expect(trigger).toBeFocused();
 });

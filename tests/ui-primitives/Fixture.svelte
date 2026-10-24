@@ -2,6 +2,7 @@
 	import * as Select from '../../src/lib/components/ui/select/index';
 	import Input from '../../src/lib/components/ui/input/input.svelte';
 	import Button from '../../src/lib/components/ui/button/button.svelte';
+	import { Label } from '../../src/lib/components/ui/label/index';
 	// An untyped JavaScript caller can still pass an invalid file default.
 	const fileDefaults: Record<string, unknown> = { value: 'previous-upload.txt' };
 	let files = $state<FileList>();
@@ -9,6 +10,12 @@
 	let selected = $state('1');
 	const selectCase = new URLSearchParams(location.search).has('select');
 	const fileCase = new URLSearchParams(location.search).has('file');
+	const inlineSelectCase = new URLSearchParams(location.search).has('portal-disabled-select');
+	const shortOptions = ['First', 'Second', 'Third', 'Fourth'].map((label) => ({
+		value: label.toLowerCase(),
+		label
+	}));
+	let shortSelected = $state('first');
 	let disabled = $state(true);
 	let actions = $state(0);
 	let parentActions = $state(0);
@@ -47,6 +54,21 @@
 			</Select.Content>
 		</Select.Root>
 		<output aria-label="Selected problem">{selected}</output>
+	{:else if inlineSelectCase}
+		<!-- Labelled trigger with the portal disabled, so the listbox renders inside main. -->
+		<Label for="short-select">Short select</Label><Select.Root
+			type="single"
+			items={shortOptions}
+			bind:value={shortSelected}
+		>
+			<Select.Trigger id="short-select"><Select.Value /></Select.Trigger>
+			<Select.Content portalProps={{ disabled: true }}>
+				{#each shortOptions as option (option.value)}
+					<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
+				{/each}
+			</Select.Content>
+		</Select.Root>
+		<output aria-label="Selected short option">{shortSelected}</output>
 	{:else}
 		<div data-action-region role="group" aria-label="Action region">
 			<Button href="#destination" {disabled} onclick={activate}>Run action</Button>
