@@ -40,6 +40,15 @@ test('disabled link blocks actions and bubbling; enabled link keeps pointer and 
 	).toEqual([]);
 });
 
+test('empty href renders a link whose click handler receives the anchor', async ({ page }) => {
+	const errors: string[] = [];
+	page.on('pageerror', (error) => errors.push(error.message));
+	await page.getByText('Current page').click();
+	await expect(page.getByLabel('Handler receiver')).toHaveText('A /');
+	await expect(page.getByRole('link', { name: 'Current page' })).toHaveAttribute('href', '');
+	expect(errors).toEqual([]);
+});
+
 test('file input ignores invalid defaults, binds files and clears without breaking text inputs', async ({
 	page
 }) => {
