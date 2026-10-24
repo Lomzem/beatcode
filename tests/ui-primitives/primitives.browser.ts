@@ -70,6 +70,33 @@ test('file input ignores invalid defaults, binds files and clears without breaki
 	).toEqual([]);
 });
 
+test('checkbox input binds checked state both ways by pointer, keyboard and program', async ({
+	page
+}) => {
+	const errors: string[] = [];
+	page.on('pageerror', (error) => errors.push(error.message));
+	await page.goto('/?checkbox');
+	const checkbox = page.getByRole('checkbox', { name: 'Share solution' });
+	await expect(checkbox).not.toBeChecked();
+	await expect(checkbox).toHaveAttribute('value', 'yes');
+	await checkbox.click();
+	await expect(checkbox).toBeChecked();
+	await expect(page.getByLabel('Share state')).toHaveText('Shared');
+	await checkbox.press('Space');
+	await expect(checkbox).not.toBeChecked();
+	await expect(page.getByLabel('Share state')).toHaveText('Private');
+	await page.getByRole('button', { name: 'Toggle share' }).click();
+	await expect(checkbox).toBeChecked();
+	expect(errors).toEqual([]);
+	expect(
+		(
+			await new AxeBuilder({ page })
+				.withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
+				.analyze()
+		).violations
+	).toEqual([]);
+});
+
 test('long select exposes pointer scroll controls and keeps end options reachable by keyboard', async ({
 	page
 }, testInfo) => {
