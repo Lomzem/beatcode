@@ -20,7 +20,7 @@ flock -w 20 .scratch/competitive-leetcode/build.lock \
 
 Use the checkout owner's UID/GID if they differ. The lock wait is bounded; retry after the current owner finishes. Results stay in `.scratch/competitive-leetcode/primitives-r1-results`, separate from application browser results. The `.browser.ts` filename prevents the application suite from discovering these fixture-only tests.
 
-Check the discriminated file-input props and Svelte fixture without regenerating application artifacts:
+Check the discriminated file-input props, link and action Button click handler types, and Svelte fixture without regenerating application artifacts:
 
 ```sh
 flock -w 20 .scratch/competitive-leetcode/build.lock \
@@ -29,4 +29,4 @@ flock -w 20 .scratch/competitive-leetcode/build.lock \
   --tsconfig tests/ui-primitives/tsconfig.json
 ```
 
-The tests protect disabled link activation and propagation, enabled pointer/keyboard behavior, native file selection and clearing, ordinary text binding, two-way checkbox checked binding and its value attribute, pointer/keyboard access to long select lists, and a select with its portal disabled whose open listbox has no axe violations at the default viewport height and where End brings the last option fully into view in a 256px-tall viewport. That short-viewport case attaches its axe results as diagnostics only and makes no conformance claim. The invalid file default deliberately represents an untyped JavaScript caller; the separate type fixture rejects that prop for TypeScript callers.
+The tests protect disabled link activation and propagation, enabled pointer/keyboard behavior, an empty `href` rendering a link whose handler receives the anchor, native file selection and clearing, ordinary text binding, two-way checkbox checked binding and its value attribute, pointer/keyboard access to long select lists, and a select with its portal disabled whose open listbox has no axe violations at the default viewport height and where End brings the last option fully into view in a 256px-tall viewport. That short-viewport case attaches its axe results as diagnostics only and makes no conformance claim. The invalid file default deliberately represents an untyped JavaScript caller; the separate type fixture rejects that prop for TypeScript callers.

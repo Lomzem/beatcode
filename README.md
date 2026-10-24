@@ -20,6 +20,6 @@ Problem packages, hidden inputs, expected answers and reference solutions belong
 
 Modal credentials belong only in the trusted controller's Convex environment. Contestant sandboxes receive no credentials or network access. Keep `MODAL_SANDBOX_V2=0`, the pinned compiler image, explicit resource limits and the configured zero net spend limit. Image or runtime changes require recalibration. Judge timing varies between hosts; time limits are practical complexity gates, and near-threshold solutions can behave differently across attempts.
 
-GitHub Actions checks pull requests. After a reviewed merge to `main`, the deployment workflow checks the code, deploys Convex, builds the frontend with public configuration, deploys Cloudflare and checks public routes. Deployment secrets are restricted to trusted jobs. The DNS workflow manages only the Clerk records listed in `ops/dns.json`.
+The release layer supplies GitHub Actions automation in `.github/workflows`. Once installed, it checks pull requests. After a reviewed merge to `main`, the deployment workflow checks the code, deploys Convex, builds the frontend with public configuration, deploys Cloudflare and checks public routes. Deployment secrets are restricted to trusted jobs. The DNS workflow manages only the Clerk records listed in `ops/dns.json`.
 
 UI requirements and review expectations are in [the agent UI guide](docs/agents/ui.md); architecture decisions are in [docs/adr](docs/adr/). Accessibility checks are engineering requirements, not a public conformance claim.
