@@ -420,16 +420,26 @@ export const _activeAttempts = internalQuery({
 	handler: (ctx) =>
 		runBackend(
 			Effect.gen(function* () {
-				return (yield* step(ctx.db.query('judgeAttempts').collect()))
-					.filter((a) => ['running', 'dispatched', 'cleaning'].includes(a.status))
-					.map((a) => ({
-						attemptId: a._id,
-						leaseVersion: a.leaseVersion,
-						sandboxId: a.sandboxId ?? null,
-						status: a.status,
-						createStartedAt: a.createStartedAt ?? null,
-						sandboxObservedAt: a.sandboxObservedAt ?? null
-					}));
+				const rows = (yield* Effect.forEach(
+					['running', 'dispatched', 'cleaning'] as const,
+					(status) =>
+						step(
+							ctx.db
+								.query('judgeAttempts')
+								.withIndex('by_status_kind_ceiling', (q) => q.eq('status', status))
+								.collect()
+						)
+				)).flat();
+				// The reaper takes the first 100 known cleanup targets; keep oldest first.
+				rows.sort((a, b) => a._creationTime - b._creationTime);
+				return rows.map((a) => ({
+					attemptId: a._id,
+					leaseVersion: a.leaseVersion,
+					sandboxId: a.sandboxId ?? null,
+					status: a.status,
+					createStartedAt: a.createStartedAt ?? null,
+					sandboxObservedAt: a.sandboxObservedAt ?? null
+				}));
 			})
 		)
 });

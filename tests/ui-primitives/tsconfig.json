@@ -1,0 +1,18 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"strict": true,
+		"skipLibCheck": true,
+		"allowJs": true,
+		"checkJs": true,
+		"resolveJsonModule": true,
+		"esModuleInterop": true,
+		"types": ["svelte", "node", "vite/client"],
+		"baseUrl": "../..",
+		"paths": { "#lib/*": ["src/lib/*"] },
+		"ignoreDeprecations": "6.0"
+	},
+	"include": ["./**/*.ts", "./**/*.svelte"]
+}

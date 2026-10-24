@@ -185,12 +185,18 @@ export const _reap = internalMutation({
 	handler: (ctx) =>
 		runBackend(
 			Effect.gen(function* () {
-				const rooms = yield* step(ctx.db.query('rooms').collect());
+				const rooms = (yield* Effect.forEach(
+					['open', 'lobby', 'in_match', 'results'] as const,
+					(status) =>
+						step(
+							ctx.db
+								.query('rooms')
+								.withIndex('by_status', (q) => q.eq('status', status))
+								.collect()
+						)
+				)).flat();
 				for (const room of rooms)
-					if (
-						room.status !== 'closed' &&
-						Date.now() - Math.max(room.lastSeen.host, room.lastSeen.guest ?? 0) > 1800000
-					) {
+					if (Date.now() - Math.max(room.lastSeen.host, room.lastSeen.guest ?? 0) > 1800000) {
 						if (room.currentMatchId) {
 							const match = yield* step(ctx.db.get(room.currentMatchId));
 							if (match?.status === 'active') yield* finishMatch(ctx, match, 'aborted', 'expired');

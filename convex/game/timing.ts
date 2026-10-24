@@ -25,7 +25,7 @@ export function timingReport(ctx: MutationCtx | QueryCtx, problemVersionId: Id<'
 					.take(2)
 			);
 			const metrics = attempts.find((a) => a.status === 'done')?.metrics;
-			if (metrics?.testWallMs.length) {
+			if (s.verdict !== 'TLE' && metrics?.testWallMs.length) {
 				const slowestTestMs = Math.max(...metrics.testWallMs);
 				measurements.push({
 					submissionId: s._id,

@@ -212,10 +212,18 @@ export function finishCleanup(
 					.withIndex('by_at', (q) => q.gte('at', firstLoss - 120000).lte('at', Date.now()))
 					.collect()
 			);
+			// A different submission's isolated preflight failure does not establish
+			// an outage for this loss. Keep the retry's own platform evidence and
+			// explicit operator declarations as independent corroboration.
+			const corroborated = incidents.some(
+				(incident) =>
+					incident.source === 'operator' ||
+					(incident.source === 'platform' && previous.some((a) => a._id === incident.attemptId))
+			);
 			yield* finishSubmission(
 				ctx,
 				attempt,
-				failureClass === 'platform' || incidents.length ? 'IE' : lossVerdict,
+				failureClass === 'platform' || corroborated ? 'IE' : lossVerdict,
 				failureClass === 'sandbox_lost'
 			);
 		}
