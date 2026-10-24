@@ -1,7 +1,11 @@
 <script lang="ts" module>
 	import { type VariantProps, tv } from 'tailwind-variants';
 	import { cn, type WithElementRef } from '#lib/utils.js';
-	import type { HTMLAnchorAttributes, HTMLButtonAttributes } from 'svelte/elements';
+	import type {
+		HTMLAnchorAttributes,
+		HTMLButtonAttributes,
+		MouseEventHandler
+	} from 'svelte/elements';
 
 	export const buttonVariants = tv({
 		base: 'cn-button group/button inline-flex max-w-full flex-wrap items-center justify-center transition-[color,background-color,border-color] outline-none select-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0',
@@ -34,11 +38,20 @@
 	export type ButtonVariant = VariantProps<typeof buttonVariants>['variant'];
 	export type ButtonSize = VariantProps<typeof buttonVariants>['size'];
 
-	export type ButtonProps = WithElementRef<HTMLButtonAttributes> &
-		WithElementRef<HTMLAnchorAttributes> & {
-			variant?: ButtonVariant;
-			size?: ButtonSize;
-		};
+	type ButtonStyleProps = {
+		variant?: ButtonVariant;
+		size?: ButtonSize;
+	};
+
+	// A string href renders a link, so its handlers receive anchor events.
+	export type ButtonProps = ButtonStyleProps &
+		(
+			| (WithElementRef<HTMLButtonAttributes> & { href?: undefined })
+			| (WithElementRef<HTMLAnchorAttributes> & {
+					href: string;
+					disabled?: boolean | null;
+			  })
+		);
 </script>
 
 <script lang="ts">
@@ -54,9 +67,13 @@
 		onclick,
 		...restProps
 	}: ButtonProps = $props();
+	// Destructuring loses the href discriminant; each branch restores its alternative.
+	type LinkClick = MouseEventHandler<HTMLAnchorElement> | null | undefined;
+	type ActionClick = MouseEventHandler<HTMLButtonElement> | null | undefined;
 </script>
 
-{#if href}
+<!-- Every string href, including '', is a link; an untyped null renders a button like undefined. -->
+{#if href != null}
 	<!-- The caller resolves internal links; this primitive also accepts external URLs. -->
 	<a
 		bind:this={ref}
@@ -66,14 +83,14 @@
 		aria-disabled={disabled}
 		role={disabled ? 'link' : undefined}
 		tabindex={disabled ? -1 : undefined}
-		{...restProps}
+		{...restProps as HTMLAnchorAttributes}
 		onclick={(event) => {
 			if (disabled) {
 				event.preventDefault();
 				event.stopPropagation();
 				return;
 			}
-			return onclick?.call(event.currentTarget, event);
+			return (onclick as LinkClick)?.call(event.currentTarget, event);
 		}}
 	>
 		{@render children?.()}
@@ -83,10 +100,10 @@
 		bind:this={ref}
 		data-slot="button"
 		class={cn(buttonVariants({ variant, size }), className)}
-		{type}
+		type={type as HTMLButtonAttributes['type']}
 		{disabled}
-		{onclick}
-		{...restProps}
+		onclick={onclick as ActionClick}
+		{...restProps as HTMLButtonAttributes}
 	>
 		{@render children?.()}
 	</button>
