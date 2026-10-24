@@ -28,6 +28,11 @@
 		this.focus();
 		return false;
 	}
+	// Reads an anchor-only property, so a button receiver throws.
+	function openCurrent(event: MouseEvent & { currentTarget: HTMLAnchorElement }) {
+		event.preventDefault();
+		receiver = `${event.currentTarget.tagName} ${new URL(event.currentTarget.href).pathname}`;
+	}
 </script>
 
 <svelte:window
@@ -81,6 +86,7 @@
 			<Button href="#destination" {disabled} onclick={activate}>Run action</Button>
 		</div>
 		<Button onclick={activate}>Native action</Button>
+		<Button href="" onclick={openCurrent}>Current page</Button>
 		<output aria-label="Handler receiver">{receiver}</output>
 		<output aria-label="Actions">{actions}</output>
 		<output aria-label="Parent actions">{parentActions}</output>
