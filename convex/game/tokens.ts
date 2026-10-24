@@ -2,7 +2,7 @@ import type { BackendFailure } from './effect';
 import { Effect } from 'effect';
 import { step } from './effect';
 export function secretToken() {
-	const bytes = Uint8Array.from({ length: 16 }, () => Math.floor(Math.random() * 256));
+	const bytes = crypto.getRandomValues(new Uint8Array(16));
 	return btoa(String.fromCharCode(...bytes))
 		.replaceAll('+', '-')
 		.replaceAll('/', '_')

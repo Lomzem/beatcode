@@ -132,7 +132,7 @@ function entries(ctx: MutationCtx | QueryCtx) {
 		const rows = yield* step(
 			ctx.db
 				.query('auditLog')
-				.filter((q) => q.eq(q.field('kind'), KIND))
+				.withIndex('by_kind', (q) => q.eq('kind', KIND))
 				.take(MAX_JOBS + 1)
 		);
 		if (rows.length > MAX_JOBS)
