@@ -11,8 +11,8 @@
 	<p>
 		Convex stores rooms, decks, submissions and results. Modal compiles and runs submitted C++ in
 		isolated sandboxes. Your source stays private unless you explicitly share it with that match’s
-		opponent. Source and judging details expire after seven days; match results expire after thirty
-		days.
+		opponent. Source and judging details become eligible for scheduled removal after seven days;
+		match results become eligible after thirty days.
 	</p>
 	<h2>On your device</h2>
 	<p>
