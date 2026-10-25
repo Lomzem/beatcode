@@ -11,6 +11,31 @@ jobs:
     permissions:
       contents: read
     uses: ./.github/workflows/checks.yml
+  # A newer queued job can replace a pending one in the shared authenticated lock; fail instead of skipping deploy silently.
+  require-authenticated-ci:
+    if: always() && github.repository == 'Lomzem/beatcode' && github.ref == 'refs/heads/main'
+    needs: checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require successful authenticated CI before production
+        env:
+          CHECKS_RESULT: ${{ needs.checks.result }}
+          AUTHENTICATED_RESULT: ${{ needs.checks.outputs.authenticated-result }}
+        run: |
+          if [ "$CHECKS_RESULT" = success ] && [ "$AUTHENTICATED_RESULT" = success ]; then
+            exit 0
+          fi
+          known() {
+            case "$1" in
+              success | failure | cancelled | skipped) printf '%s' "$1" ;;
+              '') printf 'unavailable' ;;
+              *) printf 'unrecognized' ;;
+            esac
+          }
+          echo "::error title=Production deployment blocked::Authenticated CI result: $(known "$AUTHENTICATED_RESULT"); checks result: $(known "$CHECKS_RESULT"). Production was not deployed. If authenticated CI was cancelled, a newer job probably replaced it while it waited for the shared beatcode-authenticated-dev-ci lock. Re-run this workflow once that lock is free, or fix the failing checks first."
+          exit 1
   deploy:
     if: github.repository == 'Lomzem/beatcode' && github.ref == 'refs/heads/main' && needs.checks.result == 'success' && needs.checks.outputs.authenticated-result == 'success'
     needs: checks
