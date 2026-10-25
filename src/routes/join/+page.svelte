@@ -7,15 +7,13 @@
 	import { onMount } from 'svelte';
 	import { rememberReturnPath } from '#lib/auth/return-path.js';
 	let fragment = $state('');
-	let hash = $state<string | null>(null);
 	onMount(() => {
 		fragment = location.hash.slice(1);
-		hash = location.hash;
 	});
-	// Only a signed-out visitor needs the trip back; saving for a signed-in one would
-	// revive a consumed return and bounce Account back here.
+	// Only a signed-out visitor with a complete invitation needs the trip back; saving
+	// for a signed-in one, or a bare /join, would later bounce Account back here.
 	$effect(() => {
-		if (hash !== null && !auth.loading && !auth.session) rememberReturnPath('/join' + hash);
+		if (fragment && !auth.loading && !auth.session) rememberReturnPath('/join#' + fragment);
 	});
 </script>
 

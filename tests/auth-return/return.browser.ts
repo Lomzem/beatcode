@@ -59,6 +59,18 @@ test('a returned invitation is consumed, so Account no longer bounces to it', as
 	await openAccount(page);
 });
 
+test('an invitation without its fragment is not saved, so a later sign-in opens Account', async ({
+	page
+}) => {
+	await page.goto('/join');
+	await expect(page.getByRole('alert')).toContainText('missing its room and token');
+	await page.getByRole('link', { name: 'Sign in', exact: true }).click();
+	await page.getByRole('button', { name: 'Continue with Clerk' }).click();
+	await expect(page.getByRole('heading', { name: 'You’re signed in' })).toBeVisible();
+	await expect(page).toHaveURL(/\/sign-in$/);
+	await expectRedirectOptions(page);
+});
+
 test('without session storage, a manual return keeps the signed-in visitor on Account', async ({
 	page
 }) => {
