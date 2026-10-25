@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { Effect, Fiber } from 'effect';
@@ -169,6 +169,43 @@ describe('DEV operator transport', () => {
 		expect(signal.aborted).toBe(false);
 		await Effect.runPromise(Fiber.interrupt(call));
 		expect(signal.aborted).toBe(true);
+	});
+	it('aborts a pending request at the deadline without interruption, not before the action limit', async () => {
+		// Node's AbortSignal.timeout runs on internal timers that fake timers cannot advance, so the
+		// native timer runs 1000x faster. Real clock accuracy is not under test.
+		const scale = 1000;
+		const nativeTimeout = AbortSignal.timeout.bind(AbortSignal);
+		let armed = 0;
+		const timeout = vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms) => {
+			armed = performance.now();
+			return nativeTimeout(ms / scale);
+		});
+		let reason: unknown;
+		let waited = 0;
+		vi.mocked(fetch).mockImplementationOnce(
+			(_url, init) =>
+				new Promise((_resolve, reject) => {
+					const signal = init!.signal!;
+					signal.addEventListener('abort', () => {
+						waited = (performance.now() - armed) * scale;
+						reject((reason = signal.reason));
+					});
+				})
+		);
+		const call = Effect.runFork(
+			Effect.flip(devCall('calibration:_job', { reservationId: 'reservation' }))
+		);
+		// A missing deadline leaves the request pending past the Vitest timeout, which does not
+		// cancel the test body; release the request and the spy however the test ends.
+		onTestFinished(async () => {
+			await Effect.runPromise(Fiber.interrupt(call));
+			timeout.mockRestore();
+		});
+		const failure = await Effect.runPromise(Fiber.join(call));
+		expect(failure.message).toBe('DEV_OPERATOR_CALL_FAILED:calibration:_job');
+		expect((reason as Error).name).toBe('TimeoutError');
+		// Convex actions may run for 10 minutes; the client must not give up first.
+		expect(waited).toBeGreaterThanOrEqual(600_000);
 	});
 });
 
