@@ -68,7 +68,7 @@ test('public routes remain accessible and reflow with enlarged, spaced text', as
 				exact: true
 			})
 			.click();
-		for (const route of ['/', '/sign-in', '/settings', '/sso-callback']) {
+		for (const route of ['/', '/sign-in', '/settings', '/sso-callback', '/privacy']) {
 			await page.goto(route);
 			await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 			await expect(page).toHaveTitle(/Beatcode/);

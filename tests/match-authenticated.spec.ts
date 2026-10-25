@@ -282,9 +282,19 @@ test('two authenticated players create, join, ready, preserve code, and concede 
 			}
 		}
 		await activate(a.getByRole('button', { name: 'Concede match', exact: true }));
+		await expect(a.getByRole('dialog', { name: 'Concede match?', exact: true })).toBeVisible();
+		expect((await new AxeBuilder({ page: a }).analyze()).violations).toEqual([]);
 		await activate(a.getByRole('button', { name: 'Confirm concede', exact: true }));
 		await expect(a.getByRole('heading', { name: 'Match result', exact: true })).toBeVisible();
 		await expect(b.getByRole('heading', { name: 'Match result', exact: true })).toBeVisible();
+		const share = a.getByRole('button', { name: 'Share my source', exact: true });
+		await activate(share);
+		const shareDialog = a.getByRole('dialog', { name: 'Share your source?', exact: true });
+		await expect(shareDialog).toBeVisible();
+		expect((await new AxeBuilder({ page: a }).analyze()).violations).toEqual([]);
+		await activate(shareDialog.getByRole('button', { name: 'Cancel', exact: true }));
+		await expect(shareDialog).toBeHidden();
+		await expect(share).toBeFocused();
 		await activate(a.getByRole('link', { name: 'Rooms', exact: true }));
 		await expect(a).toHaveURL(/\/play$/);
 		await expectPresenceStopped(a, presence);

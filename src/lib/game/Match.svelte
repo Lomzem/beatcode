@@ -706,8 +706,14 @@
 		</div>
 	{/if}
 
-	<dialog bind:this={confirmation} onclose={() => requester?.focus()}>
-		<h2>{confirmAction === 'concede' ? 'Concede match?' : 'Share your source?'}</h2>
+	<dialog
+		bind:this={confirmation}
+		aria-labelledby="confirmation-heading"
+		onclose={() => requester?.focus()}
+	>
+		<h2 id="confirmation-heading">
+			{confirmAction === 'concede' ? 'Concede match?' : 'Share your source?'}
+		</h2>
 		<p>
 			{confirmAction === 'concede'
 				? 'Your opponent will win this match. Your draft remains on this device.'
