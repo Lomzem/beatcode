@@ -276,3 +276,57 @@ it('selects only the fixed activation record at the external stdout boundary', a
 		output.mockRestore();
 	}
 });
+
+it('selects only the fixed auth boundary record at the external stdout boundary', async () => {
+	const record = {
+		clerkRequests: 2,
+		clerkOk: 1,
+		problems: [{ endpoint: 'environment', outcome: '429', code: 'too_many_requests' }],
+		retryAfter: true,
+		appAssetFailures: 0,
+		csp: false,
+		pageErrors: 0
+	};
+	const prefix = 'CI auth boundary: ';
+	const safe = prefix + JSON.stringify(record);
+	const problem = record.problems[0];
+	const lines = [
+		safe,
+		...Object.entries({
+			url: 'https://ci-instance.clerk.accounts.dev/v1/client',
+			error: 'private-error',
+			token: 'testing-token-canary',
+			email: 'canary@example.invalid'
+		}).map(([key, value]) => prefix + JSON.stringify({ ...record, [key]: value })),
+		...[
+			{ ...record, problems: [{ ...problem, message: 'private-error' }] },
+			{ ...record, problems: [{ ...problem, code: 'sess_private' }] },
+			{ ...record, problems: [{ ...problem, endpoint: '/v1/client/sessions/sess_private' }] },
+			{ ...record, problems: [{ ...problem, outcome: 'failed_canary@example.invalid' }] },
+			{ ...record, problems: Array(5).fill(problem) },
+			{ ...record, problems: 'private-error' },
+			{ ...record, clerkRequests: 100 },
+			{ ...record, pageErrors: -1 },
+			{ ...record, clerkOk: 0.5 },
+			{ ...record, csp: 'canary@example.invalid' }
+		].map((row) => prefix + JSON.stringify(row)),
+		prefix + 'private-error',
+		prefix + '[]'
+	];
+	const emitted: string[] = [];
+	const output = vi.spyOn(console, 'info').mockImplementation((line) => {
+		emitted.push(String(line));
+	});
+	try {
+		await Effect.runPromise(
+			runCommand(
+				['node', '-e', `process.stdout.write(${JSON.stringify(lines.join('\n') + '\n')})`],
+				'Diagnostic child failed',
+				process.env
+			)
+		);
+		expect(emitted).toEqual([safe]);
+	} finally {
+		output.mockRestore();
+	}
+});

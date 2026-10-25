@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { mkdirSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, type Page, type BrowserContext, type Locator } from '@playwright/test';
+import { observeAuthBoundary } from './auth-diagnostics';
 
 export class AccountFailure extends Data.TaggedError('AccountFailure')<{ message: string }> {}
 export const accountStep = <A>(tryPromise: () => Promise<A>) =>
@@ -21,6 +22,7 @@ export function hostedSignIn(
 	email: string,
 	destination: string
 ) {
+	const boundary = observeAuthBoundary(page, new URL(destination).origin);
 	return Effect.runPromise(
 		Effect.gen(function* () {
 			const { token } = yield* accountStep(
@@ -86,6 +88,8 @@ export function hostedSignIn(
 						}))
 						.catch(() => null);
 					if (flags) console.info('CI auth flags: ' + Object.values(flags).map(Number).join(''));
+					const line = await boundary.line();
+					if (line) console.info(line);
 					privateDiagnostic({
 						portalText: await page
 							.locator('body')
@@ -93,7 +97,8 @@ export function hostedSignIn(
 							.catch(() => 'unavailable')
 					});
 				})
-			)
+			),
+			Effect.ensuring(Effect.sync(() => boundary.close()))
 		)
 	);
 }

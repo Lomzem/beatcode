@@ -1,6 +1,7 @@
 import { Effect, Data } from 'effect';
 import { safeCardFailure } from './card-diagnostics';
 import { safeActivationFailure } from './activation-diagnostics';
+import { safeAuthBoundary } from './auth-diagnostics';
 import { spawn } from 'node:child_process';
 import { readdir, readFile } from 'node:fs/promises';
 
@@ -27,7 +28,8 @@ export const runCommand = (
 				const lines = pending.split('\n');
 				pending = lines.pop()!;
 				for (const line of lines) {
-					const diagnostic = safeCardFailure(line) ?? safeActivationFailure(line);
+					const diagnostic =
+						safeCardFailure(line) ?? safeActivationFailure(line) ?? safeAuthBoundary(line);
 					if (diagnostic) {
 						console.info(diagnostic);
 						continue;
