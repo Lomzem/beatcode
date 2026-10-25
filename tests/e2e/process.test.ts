@@ -330,3 +330,34 @@ it('selects only the fixed auth boundary record at the external stdout boundary'
 		output.mockRestore();
 	}
 });
+
+it('forwards only an exact plain-integer clock ping count from child stdout', async () => {
+	const safe = 'CI clock pings: 12';
+	const lines = [
+		safe,
+		'CI clock pings: 12 testing-token-canary',
+		'CI clock pings: 12 ',
+		' CI clock pings: 12',
+		'CI clock pings: -1',
+		'CI clock pings: 1.5',
+		'CI clock pings: canary@example.invalid',
+		'CI clock pings: ',
+		'CI clock pings: 12\rprivate-error'
+	];
+	const emitted: string[] = [];
+	const output = vi.spyOn(console, 'info').mockImplementation((line) => {
+		emitted.push(String(line));
+	});
+	try {
+		await Effect.runPromise(
+			runCommand(
+				['node', '-e', `process.stdout.write(${JSON.stringify(lines.join('\n') + '\n')})`],
+				'Diagnostic child failed',
+				process.env
+			)
+		);
+		expect(emitted).toEqual([safe]);
+	} finally {
+		output.mockRestore();
+	}
+});

@@ -90,7 +90,7 @@ const synchronize = Effect.gen(function* () {
 	const zone = zones[0].id;
 	for (const record of manifest.records) {
 		const records = yield* api(
-			`/zones/${zone}/dns_records?${new URLSearchParams({ name: record.name })}`
+			`/zones/${zone}/dns_records?${new URLSearchParams({ 'name.exact': record.name })}`
 		);
 		if (records.length > 1)
 			return yield* new DnsSyncError({

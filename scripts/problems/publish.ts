@@ -43,15 +43,31 @@ const publish = Effect.gen(function* () {
 		envId
 	});
 	const { uploadUrl } = yield* devCall<{ uploadUrl: string }>('problems:_uploadUrl', {});
-	const response = yield* operatorAsync('UPLOAD_FAILED', () =>
-		fetch(uploadUrl, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/gzip' },
-			body: new Uint8Array(p.blob)
-		})
-	);
-	if (!response.ok) return yield* new OperatorError({ message: 'UPLOAD_FAILED' });
-	const { storageId } = yield* operatorAsync('UPLOAD_RESPONSE_INVALID', () => response.json());
+	// One signal bounds the request and its body read: interruption or the deadline aborts both.
+	// Aborting stops only this client; storage may still have accepted the blob.
+	let failure = 'UPLOAD_FAILED';
+	const { storageId } = yield* Effect.tryPromise({
+		try: async (signal) => {
+			const response = await fetch(uploadUrl, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/gzip' },
+				body: new Uint8Array(p.blob),
+				signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]),
+				redirect: 'error'
+			});
+			if (!response.ok) throw new Error();
+			failure = 'UPLOAD_RESPONSE_INVALID';
+			// Convex validates the ID format at _createVersion; reject only shapes it can never accept.
+			const body: unknown = await response.json();
+			const storageId =
+				typeof body === 'object' && body !== null && 'storageId' in body
+					? body.storageId
+					: undefined;
+			if (typeof storageId !== 'string' || storageId === '') throw new Error();
+			return { storageId };
+		},
+		catch: () => new OperatorError({ message: failure })
+	});
 	const result = yield* devCall<{ problemVersionId: string }>('problems:_createVersion', {
 		...p.metadata,
 		judgeEnvId,

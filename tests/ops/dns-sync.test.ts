@@ -44,7 +44,16 @@ async function sync(
 			if (url.pathname === '/client/v4/zones')
 				result = [{ id: 'zone', account: { id: account }, status: 'active' }];
 			else if (request.method === 'GET') {
-				const current = options.existing?.[url.searchParams.get('name') ?? ''];
+				// Cloudflare's list filter is the `name` object; `name.exact` is its exact match.
+				// Any other query shape is refused, so a misnamed filter cannot pass as "no records".
+				const filter = [...url.searchParams];
+				if (filter.length !== 1 || filter[0][0] !== 'name.exact') {
+					response
+						.writeHead(400, { 'Content-Type': 'application/json' })
+						.end(JSON.stringify({ success: false, errors: [{ code: 9999 }], result: null }));
+					return;
+				}
+				const current = options.existing?.[filter[0][1]];
 				result = current ? [current] : [];
 			} else
 				writes.push({ method: request.method ?? '', path: url.pathname, body: JSON.parse(body) });

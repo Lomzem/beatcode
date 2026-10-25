@@ -1,10 +1,13 @@
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, onTestFinished, vi } from 'vitest';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 // The publisher pins the operator's private checkout. These fixtures redirect only that
 // namespace into a temporary tree with real directories and symlinks, so the real private
-// checkout is never read. GitHub and the DEV deployment are offline fakes.
+// checkout is never read. GitHub and the DEV deployment are offline fakes; a loopback server
+// stands in for the upload URL the DEV deployment issues, reached through the real fetch.
 const { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } =
 	await vi.importActual<typeof import('node:fs')>('node:fs');
 const checkout = '/home/lomzem/proj/beatcode-problems';
@@ -12,8 +15,10 @@ const state = vi.hoisted(() => ({
 	base: '',
 	gh: [] as string[][],
 	packageReads: [] as string[],
-	requests: [] as { url: string; name?: string }[]
+	requests: [] as { url: string; name?: string }[],
+	uploadUrl: ''
 }));
+const send = globalThis.fetch;
 const toFixture = (path: string) =>
 	path === checkout || path.startsWith(`${checkout}/`)
 		? state.base + path.slice(checkout.length)
@@ -101,6 +106,7 @@ beforeEach(() => {
 	state.gh = [];
 	state.packageReads = [];
 	state.requests = [];
+	state.uploadUrl = 'https://upload.invalid/fixture';
 	for (const name of [
 		'CONVEX_DEPLOY_KEY',
 		'CONVEX_DEPLOYMENT_TOKEN',
@@ -119,11 +125,15 @@ beforeEach(() => {
 				state.requests.push({ url: String(url) });
 				return Response.json({ storageId: 'storage' });
 			}
+			if (String(url).startsWith('http://127.0.0.1:')) {
+				state.requests.push({ url: 'loopback upload' });
+				return send(url, init);
+			}
 			const { path } = JSON.parse(String(init.body));
 			state.requests.push({ url: String(url), name: path });
 			const value = {
 				'problems:_registerEnvironment': { judgeEnvId: 'environment' },
-				'problems:_uploadUrl': { uploadUrl: 'https://upload.invalid/fixture' },
+				'problems:_uploadUrl': { uploadUrl: state.uploadUrl },
 				'problems:_createVersion': { problemVersionId: 'version' }
 			}[path as string];
 			return Response.json({ status: 'success', value, logLines: [] });
@@ -186,4 +196,92 @@ it.each([
 	expect(state.gh).toEqual([]);
 	expect(state.packageReads).toEqual([]);
 	expect(state.requests).toEqual([]);
+});
+
+async function uploadServer(handle: (request: IncomingMessage, response: ServerResponse) => void) {
+	const server = createServer(handle);
+	// A missing deadline leaves the upload pending past the Vitest timeout, which does not cancel
+	// the test body; release the connection however the test ends.
+	onTestFinished(
+		() =>
+			new Promise<void>((done) => {
+				server.closeAllConnections();
+				server.close(() => done());
+			})
+	);
+	await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+	state.uploadUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/upload`;
+	return server;
+}
+
+it('refuses an upload redirect instead of following it to another storage endpoint', async () => {
+	writePackage(join(state.base, 'fixture-sum'), 'fixture-sum');
+	const paths: string[] = [];
+	await uploadServer((request, response) => {
+		paths.push(request.url ?? '');
+		request.resume();
+		if (request.url === '/upload') response.writeHead(307, { Location: '/elsewhere' }).end();
+		else response.writeHead(200).end(JSON.stringify({ storageId: 'redirected' }));
+	});
+	await expect(publish('fixture-sum')).rejects.toThrow('UPLOAD_FAILED');
+	expect(paths).toEqual(['/upload']);
+	expect(state.requests.map((r) => r.name ?? r.url)).toEqual([
+		'problems:_registerEnvironment',
+		'problems:_uploadUrl',
+		'loopback upload'
+	]);
+});
+
+it.each([
+	['response headers', 'UPLOAD_FAILED', () => {}],
+	[
+		'response body',
+		'UPLOAD_RESPONSE_INVALID',
+		(response: ServerResponse) =>
+			response.writeHead(200, { 'Content-Type': 'application/json' }).write('{"storageId":')
+	]
+])('abandons an upload whose %s stall at the 30-second deadline', async (_, message, stall) => {
+	writePackage(join(state.base, 'fixture-sum'), 'fixture-sum');
+	// Node's AbortSignal.timeout runs on internal timers that fake timers cannot advance, so the
+	// native timer runs 1000x faster. Real clock accuracy is not under test.
+	const scale = 1000;
+	const nativeTimeout = AbortSignal.timeout.bind(AbortSignal);
+	let armed = 0;
+	const timeout = vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms) => {
+		armed = performance.now();
+		return nativeTimeout(ms / scale);
+	});
+	onTestFinished(() => timeout.mockRestore());
+	let abandoned: (waited: number) => void = () => {};
+	const closed = new Promise<number>((done) => (abandoned = done));
+	await uploadServer((request, response) => {
+		request.resume();
+		response.on('close', () => abandoned((performance.now() - armed) * scale));
+		stall(response);
+	});
+	await expect(publish('fixture-sum')).rejects.toThrow(message);
+	const waited = await closed;
+	// Production DEV calls may run for 10 minutes; the upload alone has a 30-second bound.
+	expect(waited).toBeGreaterThanOrEqual(30_000);
+	expect(waited).toBeLessThan(300_000);
+	expect(state.requests.map((r) => r.name ?? r.url)).not.toContain('problems:_createVersion');
+});
+
+it.each([
+	['null', 'null'],
+	['an object without a storage ID', '{}'],
+	['a non-string storage ID', '{"storageId":42}'],
+	['an empty storage ID', '{"storageId":""}']
+])('rejects an upload response of %s before creating a version', async (_, body) => {
+	writePackage(join(state.base, 'fixture-sum'), 'fixture-sum');
+	await uploadServer((request, response) => {
+		request.resume();
+		response.writeHead(200, { 'Content-Type': 'application/json' }).end(body);
+	});
+	await expect(publish('fixture-sum')).rejects.toThrow('UPLOAD_RESPONSE_INVALID');
+	expect(state.requests.map((r) => r.name ?? r.url)).toEqual([
+		'problems:_registerEnvironment',
+		'problems:_uploadUrl',
+		'loopback upload'
+	]);
 });

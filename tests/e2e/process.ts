@@ -35,7 +35,7 @@ export const runCommand = (
 						continue;
 					}
 					if (
-						/^(?:CI presence stopped: \d+|CI presence: \d+ emitted \d+ accepted \d+ failed|CI auth flags: [01]{7}|CI auth: (?:entry|portal|email|code|return)|CI progress: (?:chromium|firefox|webkit)-(?:320|768|1280) (?:host|guest|new) (?:create|signin|nickname|pass|saved)|CI case: (?:chromium|firefox|webkit)-(?:320|768|1280) (?:passed|failed|timedOut|skipped|interrupted)(?: line \d+)?|Authenticated coverage: \d+ passed, \d+ failed\/skipped; required minimum 36\.)$/.test(
+						/^(?:CI clock pings: \d+|CI presence stopped: \d+|CI presence: \d+ emitted \d+ accepted \d+ failed|CI auth flags: [01]{7}|CI auth: (?:entry|portal|email|code|return)|CI progress: (?:chromium|firefox|webkit)-(?:320|768|1280) (?:host|guest|new) (?:create|signin|nickname|pass|saved)|CI case: (?:chromium|firefox|webkit)-(?:320|768|1280) (?:passed|failed|timedOut|skipped|interrupted)(?: line \d+)?|Authenticated coverage: \d+ passed, \d+ failed\/skipped; required minimum 36\.)$/.test(
 							line
 						)
 					)
