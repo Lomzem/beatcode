@@ -208,4 +208,4 @@ const calibrate = Effect.gen(function* () {
 	}
 });
 
-Effect.runSync(calibrate);
+await Effect.runPromise(calibrate);

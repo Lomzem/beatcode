@@ -1,42 +1,174 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { devRun } from '../../scripts/problems/operator';
+import { Effect, Fiber } from 'effect';
+import { devCall } from '../../scripts/problems/operator';
 
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
 vi.mock('node:fs', () => ({ readFileSync: vi.fn(), mkdirSync: vi.fn(), writeFileSync: vi.fn() }));
 
+// Offline HTTP fixture for the installed Convex SDK; no deployment is contacted.
+const key = 'dev:descriptive-scorpion-877|fixture-not-a-credential';
+const remote = {
+	requests: [] as { url: string; authorization: string | null; name: string; args: unknown }[],
+	handle: (() => null) as (name: string, args: Record<string, unknown>) => unknown,
+	reply: undefined as Response | undefined
+};
+const devRun = <T>(name: string, args: Record<string, unknown>) =>
+	Effect.runPromise(devCall<T>(name, args));
+
 beforeEach(() => {
 	vi.mocked(readFileSync).mockReturnValue('CONVEX_DEPLOYMENT=dev:descriptive-scorpion-877\n');
-	vi.mocked(execFileSync).mockReturnValue('');
+	for (const name of [
+		'CONVEX_DEPLOY_KEY',
+		'CONVEX_DEPLOYMENT_TOKEN',
+		'CONVEX_SELF_HOSTED_URL',
+		'CONVEX_SELF_HOSTED_ADMIN_KEY',
+		'CONVEX_DEPLOYMENT',
+		'CONVEX_CLOUD_URL',
+		'PUBLIC_CONVEX_URL'
+	])
+		vi.stubEnv(name, undefined);
+	vi.stubEnv('CONVEX_DEV_DEPLOY_KEY', key);
+	remote.requests = [];
+	remote.reply = undefined;
+	remote.handle = () => null;
+	vi.stubGlobal(
+		'fetch',
+		vi.fn(async (url: string, init: RequestInit) => {
+			const body = JSON.parse(String(init.body));
+			remote.requests.push({
+				url: String(url),
+				authorization: new Headers(init.headers).get('Authorization'),
+				name: body.path,
+				args: body.args
+			});
+			if (remote.reply) return remote.reply;
+			try {
+				const value = await remote.handle(body.path, body.args);
+				return Response.json({ status: 'success', value: value ?? null, logLines: [] });
+			} catch (error) {
+				return Response.json(
+					{ status: 'error', errorMessage: String(error), logLines: [] },
+					{ status: 560 }
+				);
+			}
+		})
+	);
+});
+afterEach(() => {
+	vi.unstubAllEnvs();
+	vi.unstubAllGlobals();
 });
 
-describe('DEV operator CLI boundary', () => {
-	it('acknowledges a successful void mutation without parsing absent output', () => {
-		expect(devRun('calibrationState:_finish', { reservationId: 'reservation' })).toBeUndefined();
+describe('DEV operator transport', () => {
+	it('sends an accepted maximum-size package in process to the pinned admin endpoint', async () => {
+		// Each argument alone exceeds Linux's 128KiB per-argv-string limit.
+		const statementMd = 's'.repeat(65536);
+		const referenceSolutions = {
+			accepted: Array.from({ length: 5 }, (_, i) => `${i}`.repeat(65536)),
+			timeLimitExceeded: ['t'.repeat(65536)],
+			wrongAnswer: ['w'.repeat(4000)],
+			validator: 'v'.repeat(400000 - 6 * 65536 - 4000)
+		};
+		remote.handle = () => ({ problemVersionId: 'version' });
+		await expect(
+			devRun('problems:_createVersion', { slug: 'fixture', statementMd, referenceSolutions })
+		).resolves.toEqual({ problemVersionId: 'version' });
+		expect(remote.requests).toEqual([
+			{
+				url: 'https://descriptive-scorpion-877.convex.cloud/api/function',
+				authorization: `Convex ${key}`,
+				name: 'problems:_createVersion',
+				args: { slug: 'fixture', statementMd, referenceSolutions }
+			}
+		]);
+		expect(execFileSync).not.toHaveBeenCalled();
 	});
-	it('decodes returned JSON and preserves an explicit null', () => {
-		vi.mocked(execFileSync).mockReturnValueOnce('{"released":true}').mockReturnValueOnce('null');
-		expect(devRun('calibration:status', {})).toEqual({ released: true });
-		expect(devRun('calibration:status', {})).toBeNull();
+	it('acknowledges a successful void mutation as undefined', async () => {
+		await expect(
+			devRun('calibrationState:_finish', { reservationId: 'reservation' })
+		).resolves.toBeUndefined();
+		remote.handle = () => ({ released: true });
+		await expect(devRun('calibration:status', {})).resolves.toEqual({ released: true });
 	});
-	it('blocks the wrong deployment before invoking the CLI', () => {
-		vi.mocked(readFileSync).mockReturnValue('CONVEX_DEPLOYMENT=prod:careful-greyhound-596');
-		const before = vi.mocked(execFileSync).mock.calls.length;
-		expect(() => devRun('calibration:status', {})).toThrow('DEV_DEPLOYMENT_REQUIRED');
-		expect(execFileSync).toHaveBeenCalledTimes(before);
+	it.each([
+		[
+			'the pinned environment file names another deployment',
+			'DEV_DEPLOYMENT_REQUIRED',
+			() => vi.mocked(readFileSync).mockReturnValue('CONVEX_DEPLOYMENT=prod:careful-greyhound-596')
+		],
+		[
+			'the process selects another deployment',
+			'DEV_DEPLOYMENT_REQUIRED',
+			() => vi.stubEnv('CONVEX_DEPLOYMENT', 'prod:careful-greyhound-596')
+		],
+		[
+			'the process selects another cloud URL',
+			'DEV_DEPLOYMENT_REQUIRED',
+			() => vi.stubEnv('CONVEX_CLOUD_URL', 'https://careful-greyhound-596.convex.cloud')
+		],
+		[
+			'the DEV key is absent',
+			'DEV_AUTH_REQUIRED',
+			() => vi.stubEnv('CONVEX_DEV_DEPLOY_KEY', undefined)
+		],
+		[
+			'the key belongs to production',
+			'DEV_AUTH_REQUIRED',
+			() =>
+				vi.stubEnv('CONVEX_DEV_DEPLOY_KEY', 'prod:careful-greyhound-596|fixture-not-a-credential')
+		],
+		[
+			'a generic Convex key is also present',
+			'DEV_AUTH_REQUIRED',
+			() => vi.stubEnv('CONVEX_DEPLOY_KEY', key)
+		]
+	])('blocks dispatch when %s', async (_case, message, arrange) => {
+		arrange();
+		await expect(devRun('calibration:status', {})).rejects.toThrow(message);
+		expect(remote.requests).toEqual([]);
 	});
-	it('sanitizes process and decode failures without retaining payloads', () => {
-		vi.mocked(execFileSync).mockImplementationOnce(() => {
-			throw new Error('secret-reference-source-and-token');
-		});
-		expect(() => devRun('calibration:status', {})).toThrow(
-			'DEV_OPERATOR_CALL_FAILED:calibration:status'
-		);
-		vi.mocked(execFileSync).mockReturnValueOnce('private-malformed-payload');
-		expect(() => devRun('calibration:status', {})).toThrow(
+	it('sanitizes remote, network and decode failures without retaining payloads or keys', async () => {
+		const secret = 'PRIVATE_HIDDEN_SOURCE';
+		const failures: unknown[] = [];
+		const capture = (name: string) =>
+			Effect.runPromise(Effect.flip(devCall(name, { source: secret })));
+		remote.handle = () => {
+			throw new Error(secret);
+		};
+		failures.push(await capture('calibration:_job'));
+		vi.mocked(fetch).mockRejectedValueOnce(new Error(`${secret} ${key}`));
+		failures.push(await capture('calibration:_job'));
+		remote.reply = new Response(`${secret}-malformed`, { status: 200 });
+		failures.push(await capture('calibration:status'));
+		expect(failures.map((failure) => (failure as Error).message)).toEqual([
+			'DEV_OPERATOR_CALL_FAILED:calibration:_job',
+			'DEV_OPERATOR_CALL_FAILED:calibration:_job',
 			'DEV_OPERATOR_OUTPUT_INVALID:calibration:status'
+		]);
+		for (const failure of failures) {
+			const exposed = JSON.stringify(failure) + String((failure as Error).stack);
+			expect(exposed).not.toContain(secret);
+			expect(exposed).not.toContain('fixture-not-a-credential');
+		}
+	});
+	it('aborts the in-flight request when the call is interrupted', async () => {
+		let sent: (signal: AbortSignal) => void = () => {};
+		const request = new Promise<AbortSignal>((resolve) => (sent = resolve));
+		vi.mocked(fetch).mockImplementationOnce(
+			(_url, init) =>
+				new Promise((_resolve, reject) => {
+					const signal = init!.signal!;
+					signal.addEventListener('abort', () => reject(signal.reason));
+					sent(signal);
+				})
 		);
+		const call = Effect.runFork(devCall('calibration:_job', { reservationId: 'reservation' }));
+		const signal = await request;
+		expect(signal.aborted).toBe(false);
+		await Effect.runPromise(Fiber.interrupt(call));
+		expect(signal.aborted).toBe(true);
 	});
 });
 
@@ -46,13 +178,11 @@ it.each([false, true])(
 		vi.resetModules();
 		const argv = process.argv;
 		const output = vi.spyOn(console, 'log').mockImplementation(() => {});
-		const dispatched: { name: string; args: unknown }[] = [];
-		vi.mocked(execFileSync).mockImplementation((_file, argv) => {
-			const name = String(argv![6]);
-			const args = JSON.parse(String(argv![7]));
+		const dispatched: { name: string; args: Record<string, unknown> }[] = [];
+		remote.handle = (name, args) => {
 			dispatched.push({ name, args });
 			if (name === 'calibrationState:_status')
-				return JSON.stringify({
+				return {
 					executionPolicy: 'staged-input-reference-10s-v1',
 					jobs: [
 						{
@@ -65,10 +195,10 @@ it.each([false, true])(
 							released: true
 						}
 					]
-				});
-			if (name === 'calibration:_job') return JSON.stringify({ verdict: 'TLE' });
+				};
+			if (name === 'calibration:_job') return { verdict: 'TLE' };
 			throw new Error('Unexpected operator dispatch');
-		});
+		};
 		try {
 			process.argv = [
 				'node',
@@ -137,14 +267,12 @@ it.each([false, true])(
 				execObservedMs: [j.wall]
 			}
 		}));
-		vi.mocked(execFileSync).mockImplementation((_file, argv) => {
-			const name = String(argv![6]);
-			const args = JSON.parse(String(argv![7]));
+		remote.handle = (name, args) => {
 			dispatched.push({ name, args });
 			if (name === 'calibrationState:_status')
-				return JSON.stringify({ executionPolicy: 'staged-input-reference-10s-v1', jobs });
+				return { executionPolicy: 'staged-input-reference-10s-v1', jobs };
 			if (name === 'problems:_calibrationInput')
-				return JSON.stringify({
+				return {
 					version: {
 						referenceSolutions: {
 							accepted: ['fixture'],
@@ -152,17 +280,17 @@ it.each([false, true])(
 							wrongAnswer: ['fixture']
 						}
 					}
-				});
+				};
 			if (name === 'calibration:_job')
-				return JSON.stringify({
+				return {
 					verdict: args.role === 'wrongAnswer' ? 'WA' : args.role === 'accepted' ? 'AC' : 'TLE',
 					slowestTestMs: 69,
 					aggregateMs: 69,
 					attemptWallMs: 1000
-				});
-			if (name === 'calibration:_finalize') return JSON.stringify({ activated: true });
+				};
+			if (name === 'calibration:_finalize') return { activated: true };
 			throw new Error('Unexpected dispatch');
-		});
+		};
 		try {
 			process.argv = [
 				'node',
