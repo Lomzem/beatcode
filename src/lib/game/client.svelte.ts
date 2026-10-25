@@ -122,8 +122,11 @@ export function createGameClient() {
 			)
 		);
 	});
+	// Profile objects change on rename or host-pass redemption; only eligibility
+	// owns this clock, so a refresh cannot reset its offset to local time.
+	const clockEligible = $derived(session.isAuthenticated && !!me.data);
 	$effect(() => {
-		if (!session.isAuthenticated || !me.data) return;
+		if (!clockEligible) return;
 		const clock = createServerClock();
 		const sync = Effect.gen(function* () {
 			const before = Date.now();

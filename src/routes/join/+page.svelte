@@ -6,7 +6,8 @@
 	import Join from '#lib/game/Join.svelte';
 	import { onMount } from 'svelte';
 	import { rememberReturnPath } from '#lib/auth/return-path.js';
-	let fragment = $state('');
+	// Undefined until the browser reads the hash: server-rendered HTML cannot see it.
+	let fragment = $state<string>();
 	onMount(() => {
 		fragment = location.hash.slice(1);
 	});
@@ -20,7 +21,8 @@
 <svelte:head><title>Join room — Beatcode</title></svelte:head>
 <div class="shell page game-page">
 	<h1>Join room</h1>
-	{#if !fragment}<p class="error" role="alert">
+	{#if fragment === undefined}<p role="status">Checking invitation…</p>
+	{:else if !fragment}<p class="error" role="alert">
 			This invitation is missing its room and token. Open the complete invitation link from your
 			host.
 		</p>{:else}
