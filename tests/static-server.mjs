@@ -24,10 +24,13 @@ const headerRules = rules
 				'^' + pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$'
 			),
 			headers: Object.fromEntries(
-				lines.filter(Boolean).map((line) => {
-					const colon = line.indexOf(':');
-					return [line.slice(0, colon).trim(), line.slice(colon + 1).trim()];
-				})
+				// Later rules already replace earlier values here, so `! Header` detaches are no-ops.
+				lines
+					.filter((line) => line && !line.trim().startsWith('!'))
+					.map((line) => {
+						const colon = line.indexOf(':');
+						return [line.slice(0, colon).trim(), line.slice(colon + 1).trim()];
+					})
 			)
 		};
 	});

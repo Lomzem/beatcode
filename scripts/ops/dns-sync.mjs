@@ -27,6 +27,7 @@ const synchronize = Effect.gen(function* () {
 			!owned.has(prefix) ||
 			names.has(record.name) ||
 			record.proxied !== false ||
+			record.ttl !== 1 ||
 			typeof record.content !== 'string' ||
 			!/^[a-z0-9_.-]+$/i.test(record.content) ||
 			!record.content.includes('.')
@@ -36,6 +37,13 @@ const synchronize = Effect.gen(function* () {
 			});
 		names.add(record.name);
 	}
+	const missing = [...owned]
+		.map((prefix) => `${prefix}.${domain}`)
+		.filter((name) => !names.has(name));
+	if (missing.length > 0)
+		return yield* new DnsSyncError({
+			message: `Manifest is missing owned DNS records: ${missing.join(', ')}.`
+		});
 	if (!apply) {
 		console.log(`Validated ${manifest.records.length} DNS-only Clerk CNAME records for ${domain}.`);
 		return;
@@ -93,7 +101,8 @@ const synchronize = Effect.gen(function* () {
 			current?.type === record.type &&
 			current.content.replace(/\.$/, '').toLowerCase() ===
 				record.content.replace(/\.$/, '').toLowerCase() &&
-			current.proxied === false;
+			current.proxied === false &&
+			current.ttl === record.ttl;
 		if (matches) {
 			console.log(`Unchanged: ${record.name}`);
 			continue;
@@ -111,7 +120,7 @@ const synchronize = Effect.gen(function* () {
 				name: record.name,
 				content: record.content,
 				proxied: false,
-				ttl: 1,
+				ttl: record.ttl,
 				comment: 'beatcode-managed'
 			}
 		);

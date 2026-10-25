@@ -71,10 +71,12 @@ const generateHeaders = Effect.gen(function* () {
 		"base-uri 'self'",
 		"form-action 'self'"
 	].join('; ');
+	// Cloudflare joins every matching rule's values, so immutable assets detach the
+	// catch-all Cache-Control and keep the other inherited security headers.
 	yield* fileOperation('write security headers', () =>
 		writeFile(
 			'build/_headers',
-			`/*\n  Content-Security-Policy: ${policy}\n  Referrer-Policy: strict-origin-when-cross-origin\n  X-Content-Type-Options: nosniff\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n  Cache-Control: no-cache\n\n/_app/immutable/*\n  Cache-Control: public, max-age=31536000, immutable\n`
+			`/*\n  Content-Security-Policy: ${policy}\n  Referrer-Policy: strict-origin-when-cross-origin\n  X-Content-Type-Options: nosniff\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n  Cache-Control: no-cache\n\n/_app/immutable/*\n  ! Cache-Control\n  Cache-Control: public, max-age=31536000, immutable\n`
 		)
 	);
 	console.log('Production security headers generated with explicit app/backend origins.');

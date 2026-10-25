@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { Effect } from 'effect';
 import { loadPackage } from './package.ts';
@@ -13,6 +13,11 @@ const publish = Effect.gen(function* () {
 		environmentFlag < 0 ? 'gcc15.3-gvisor-seccomp-r1-dev' : process.argv[environmentFlag + 1];
 	if (!envId || !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/.test(envId))
 		return yield* new OperatorError({ message: 'ENVIRONMENT_ID_REQUIRED' });
+	// A symlinked package or checkout would pass the prefix while loading files from elsewhere.
+	// Canonical resolution rejects every symlinked component before privacy, reads or upload.
+	const canonical = yield* operatorSync('PRIVATE_REPOSITORY_REQUIRED', () => realpathSync(dir));
+	if (canonical !== dir || !dir.startsWith('/home/lomzem/proj/beatcode-problems/'))
+		return yield* new OperatorError({ message: 'PRIVATE_REPOSITORY_REQUIRED' });
 	const privacy = yield* operatorSync('PRIVATE_REPOSITORY_REQUIRED', () =>
 		JSON.parse(
 			execFileSync(
@@ -22,11 +27,7 @@ const publish = Effect.gen(function* () {
 			)
 		)
 	);
-	if (
-		privacy.isPrivate !== true ||
-		privacy.visibility !== 'PRIVATE' ||
-		!dir.startsWith('/home/lomzem/proj/beatcode-problems/')
-	)
+	if (privacy.isPrivate !== true || privacy.visibility !== 'PRIVATE')
 		return yield* new OperatorError({ message: 'PRIVATE_REPOSITORY_REQUIRED' });
 	const p = yield* operatorAsync('PACKAGE_INVALID', () => loadPackage(dir));
 	if (p.metadata.version > 1 && environmentFlag < 0)
