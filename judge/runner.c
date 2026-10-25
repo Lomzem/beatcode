@@ -166,7 +166,10 @@ static long disk_used_mb(void) {
   return (long)(bytes >> 20);
 }
 // Root traverses through directory fds; never follows a contestant symlink.
-static int wipe(int dirfd) {
+// Each level holds two fds and a stack frame, so a contestant tree deeper than this is reported as leftover.
+#define WIPE_DEPTH 128
+static int wipe(int dirfd, int depth) {
+  if (depth >= WIPE_DEPTH) return -1;
   DIR *d = fdopendir(dup(dirfd)); if (!d) return -1;
   struct dirent *e; int result = 0;
   while ((e = readdir(d))) {
@@ -175,7 +178,7 @@ static int wipe(int dirfd) {
     if (fstatat(dirfd,e->d_name,&st,AT_SYMLINK_NOFOLLOW)) { result=-1; break; }
     if (S_ISDIR(st.st_mode)) {
       int sub = openat(dirfd,e->d_name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
-      if (sub < 0 || wipe(sub)) result=-1;
+      if (sub < 0 || wipe(sub, depth + 1)) result=-1;
       if (sub >= 0) close(sub);
       if (st.st_uid == NOBODY && unlinkat(dirfd,e->d_name,AT_REMOVEDIR)) result=-1;
     } else if (st.st_uid == NOBODY && unlinkat(dirfd,e->d_name,0)) result=-1;
@@ -188,7 +191,7 @@ static int wipe_tests(void) {
   for (int i=0; i<2; i++) {
     int fd = open(paths[i],O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
     if (fd < 0) return -1;
-    int result = wipe(fd); close(fd); if (result) return -1;
+    int result = wipe(fd, 0); close(fd); if (result) return -1;
   }
   return 0;
 }
@@ -338,6 +341,8 @@ int main(int argc, char **argv) {
   kill(-c, SIGKILL);
   int left = -1, sweeps = sweep(&left);
   int ipc_failed = ipc_cleanup();
+  // Attribute contestant files that cannot be removed to this run; the next run must start clean.
+  int wipe_failed = !compile && left == 0 && wipe_tests();
   // A program may exit without consuming stdin. Drain only the bounded current input,
   // within the remaining controller allowance, so its writer can finish normally.
   if (!compile && !in_eof) {
@@ -349,7 +354,7 @@ int main(int argc, char **argv) {
   }
   int promotion_failed = compile && reaped && WIFEXITED(status) && WEXITSTATUS(status) == 0 && left == 0 && !tle && !ole && !mle && !disk && promote_binary();
   fwrite(buf, 1, got > cap ? cap + 1 : got, stdout); fflush(stdout);
-  const char *st = (left != 0 || ipc_failed) ? "leftover" : promotion_failed ? "re" : mle ? "mle" : disk ? "disk" : ole ? "ole" : tle ? "tle" : WIFSIGNALED(status) ? "signal" : WEXITSTATUS(status) ? "re" : "ok";
+  const char *st = (left != 0 || ipc_failed || wipe_failed) ? "leftover" : promotion_failed ? "re" : mle ? "mle" : disk ? "disk" : ole ? "ole" : tle ? "tle" : WIFSIGNALED(status) ? "signal" : WEXITSTATUS(status) ? "re" : "ok";
   long cpums = ru.ru_utime.tv_sec * 1000 + ru.ru_utime.tv_usec / 1000 + ru.ru_stime.tv_sec * 1000 + ru.ru_stime.tv_usec / 1000;
   fprintf(stderr, "{\"status\":\"%s\",\"exitCode\":%d,\"signal\":%d,\"wallMs\":%lld,\"cpuMs\":%ld,\"maxrssKb\":%ld,\"outBytes\":%ld,\"leftover\":%d,\"sweeps\":%d,\"minAvailMb\":%ld,\"diskPeakMb\":%ld,\"diskBaseMb\":%ld,\"v\":3}\n",
           st, WIFEXITED(status) ? WEXITSTATUS(status) : -1, WIFSIGNALED(status) ? WTERMSIG(status) : 0, wall_ms, cpums,
