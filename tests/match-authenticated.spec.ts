@@ -8,6 +8,7 @@ import { observeCards, cardFailureLine, cardNames } from './e2e/card-diagnostics
 import { observeActivation, activationFailureLine } from './e2e/activation-diagnostics';
 import { observeScoredResult } from './e2e/results';
 import { observePresence, expectPresenceCadence, expectPresenceStopped } from './e2e/presence';
+import { observeClockPings, expectClockNotRestarted } from './e2e/clock';
 
 // Real-account sessions must not be recorded in traces or videos.
 test.use({ trace: 'off', video: 'off' });
@@ -430,6 +431,7 @@ test('a real development account verifies email, persists its nickname, and reco
 		'Requires a real dev frontend, official Clerk testing token, and unused backend host pass.'
 	);
 	test.setTimeout(120000);
+	const pings = observeClockPings(page);
 	if (required) {
 		const email = await readFile(
 			join(process.env.MATCH_E2E_PRIVATE_DIR!, test.info().project.name, 'new-email'),
@@ -463,6 +465,9 @@ test('a real development account verifies email, persists its nickname, and reco
 	await page.getByLabel('Host pass').fill((await readFile(passFile!, 'utf8')).trim());
 	await activate(page.getByRole('button', { name: 'Redeem host pass', exact: true }));
 	await expect(page.getByRole('button', { name: 'Create room', exact: true })).toBeEnabled();
+	// Saving the nickname starts the clock; redeeming the pass refreshes the same profile.
+	await page.waitForTimeout(2000);
+	expectClockNotRestarted(pings);
 	await page.reload();
 	await expect(page.getByText('UI host', { exact: true })).toBeVisible();
 	await activate(page.getByText('Edit nickname', { exact: true }));
