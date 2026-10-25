@@ -50,6 +50,9 @@ async function tests(...contestants: string[]) {
 			'docker',
 			[
 				...['run', '--rm', '--name', name, '--network', 'none'],
+				// AppArmor's docker-default (hosted CI) denies chmod on runc's masked /proc file binds,
+				// which the runner's mount check needs; only the LSM layer is dropped, caps and seccomp stay.
+				...['--security-opt', 'apparmor=unconfined'],
 				...['--ulimit', 'nofile=1048576:1048576', '--ulimit', 'stack=8388608:-1'],
 				...['-v', `${dir}:/opt/judge:ro`, IMAGE, 'sh', '-c', script]
 			],
