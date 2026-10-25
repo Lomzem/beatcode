@@ -9,11 +9,25 @@ test('a visitor can reach sign-in and understands when it is unavailable', async
 });
 
 test('a visitor can choose accessible preferences and keep them after reload', async ({ page }) => {
+	await page.emulateMedia({ reducedMotion: 'no-preference' });
+	// A transition added by the test; only the Motion preference should remove it.
+	const transition = () =>
+		page.evaluate(() => {
+			const probe = document.body.appendChild(document.createElement('span'));
+			probe.style.transition = 'opacity 200ms';
+			const duration = getComputedStyle(probe).transitionDuration;
+			probe.remove();
+			return duration;
+		});
 	await page.goto('/settings');
+	expect(await transition()).toBe('0.2s');
+	const status = page.getByRole('status');
 	await page.getByRole('combobox', { name: 'Appearance', exact: true }).click();
 	await page.getByRole('option', { name: 'High contrast', exact: true }).click();
+	await expect(status).toContainText('High contrast');
 	await page.getByRole('combobox', { name: 'Motion', exact: true }).click();
 	await page.getByRole('option', { name: 'Reduce motion', exact: true }).click();
+	await expect(status).toContainText('Reduce motion');
 	await page.reload();
 	await expect(page.getByRole('combobox', { name: 'Appearance', exact: true })).toContainText(
 		'High contrast'
@@ -23,10 +37,20 @@ test('a visitor can choose accessible preferences and keep them after reload', a
 	);
 	await expect(page.locator('html')).toHaveCSS('background-color', 'rgb(0, 0, 0)');
 	await page.getByRole('link', { name: 'Overview', exact: true }).click();
-	await expect(page.getByRole('link', { name: 'Sign in to play' })).toHaveCSS(
-		'transition-duration',
-		'0s'
-	);
+	await expect(page.getByRole('link', { name: 'Sign in to play' })).toBeVisible();
+	expect(await transition()).toBe('0s');
+});
+
+test('a device request for more contrast applies until the visitor chooses a theme', async ({
+	page
+}) => {
+	await page.emulateMedia({ colorScheme: 'light', contrast: 'more' });
+	await page.goto('/settings');
+	await expect(page.locator('html')).toHaveCSS('background-color', 'rgb(0, 0, 0)');
+	await page.getByRole('combobox', { name: 'Appearance', exact: true }).click();
+	await page.getByRole('option', { name: 'Light', exact: true }).click();
+	await page.reload();
+	await expect(page.locator('html')).toHaveCSS('background-color', 'rgb(244, 247, 255)');
 });
 
 import AxeBuilder from '@axe-core/playwright';

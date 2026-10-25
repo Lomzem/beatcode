@@ -365,7 +365,8 @@
 	<div class="match-summary panel">
 		<div>
 			<strong>Round {round.index} · {round.status}</strong>
-			<p aria-label="Round clock">
+			<p>
+				<span class="sr-only">Round clock:</span>
 				{game.state.clockReady
 					? timeLeft(round.status === 'intermission' ? round.startsAt : round.endsAt, now)
 					: 'Syncing clock…'}{round.status === 'intermission' ? ' until start' : ''}
@@ -681,7 +682,7 @@
 				>{/if}
 		</div>{/if}
 	{#if mobile && tab === 'Code' && !keyboardOpen}
-		<div class="mobile-actions" aria-label="Code actions">
+		<div class="mobile-actions" role="group" aria-label="Code actions">
 			<button
 				class="game-button"
 				disabled={blocked ||

@@ -89,7 +89,9 @@
 			}, undefined)
 		);
 	});
-	function save() {
+	// Name each change so repeated saves still update the status region.
+	function save(setting: string, items: { value: string; label: string }[], value: string) {
+		const change = `${setting}: ${items.find((item) => item.value === value)?.label}.`;
 		Effect.runSync(
 			Effect.gen(function* () {
 				if (theme === 'system') delete document.documentElement.dataset.theme;
@@ -103,12 +105,11 @@
 					localStorage.setItem('beatcode.theme', theme);
 					localStorage.setItem('beatcode.motion', motion);
 				});
-				message = 'Preferences saved on this device.';
+				message = `${change} Saved on this device.`;
 			}).pipe(
 				Effect.catchTag('StorageUnavailable', () =>
 					Effect.sync(() => {
-						message =
-							'Preferences applied for now. Your browser could not save them on this device.';
+						message = `${change} Applied for now. Your browser could not save preferences on this device.`;
 					})
 				)
 			)
@@ -129,7 +130,7 @@
 				bind:value={theme}
 				onValueChange={(value) => {
 					theme = value;
-					save();
+					save('Appearance', options.theme, value);
 				}}
 			>
 				<Select.Trigger id="theme" aria-describedby="theme-help"><Select.Value /></Select.Trigger>
@@ -151,7 +152,7 @@
 				bind:value={motion}
 				onValueChange={(value) => {
 					motion = value;
-					save();
+					save('Motion', options.motion, value);
 				}}
 			>
 				<Select.Trigger id="motion" aria-describedby="motion-help"><Select.Value /></Select.Trigger>
@@ -173,7 +174,7 @@
 				bind:value={wrap}
 				onValueChange={(value) => {
 					wrap = value;
-					save();
+					save('Editor line wrapping', options.wrap, value);
 				}}
 			>
 				<Select.Trigger id="wrap"><Select.Value /></Select.Trigger>
@@ -192,7 +193,7 @@
 				bind:value={font}
 				onValueChange={(value) => {
 					font = value;
-					save();
+					save('Editor font size', options.font, value);
 				}}
 			>
 				<Select.Trigger id="font"><Select.Value /></Select.Trigger>
@@ -211,7 +212,7 @@
 				bind:value={announcements}
 				onValueChange={(value) => {
 					announcements = value;
-					save();
+					save('Game announcements', options.announcements, value);
 				}}
 			>
 				<Select.Trigger id="announcements"><Select.Value /></Select.Trigger>

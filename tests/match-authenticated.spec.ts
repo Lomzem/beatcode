@@ -124,6 +124,11 @@ test('two authenticated players create, join, ready, preserve code, and concede 
 		await a.reload();
 		await panel(a, 'Code');
 		await expect(editor).toContainText('// reload recovery');
+		// Axe only flags names on unnamed roles as incomplete, so require both lists empty.
+		const naming = await new AxeBuilder({ page: a }).withRules(['aria-prohibited-attr']).analyze();
+		expect([...naming.violations, ...naming.incomplete]).toEqual([]);
+		if (testInfo.project.use.viewport!.width < 640)
+			await expect(a.getByRole('group', { name: 'Code actions', exact: true })).toBeVisible();
 		// The actual Match editor owns selection readability; no mocked auth/editor state.
 		for (const appearance of [
 			'light',
