@@ -42,8 +42,11 @@
 		mounted = true;
 	});
 	$effect(() => {
-		if (mounted && auth.session && returnPath)
+		if (mounted && auth.session && returnPath) {
+			// Consume the destination so a later visit to this page stays on the account.
+			clearReturnPath();
 			void goto(resolve(returnPath as '/join'), { replaceState: true });
+		}
 	});
 
 	class AuthActionFailure extends Data.TaggedError('AuthActionFailure') {}

@@ -6,9 +6,9 @@ export function safeReturnPath(raw: string | null): string | null {
 	if (!raw || !raw.startsWith('/') || raw.startsWith('//') || /[\\\r\n]/.test(raw)) return null;
 	try {
 		const url = new URL(raw, location.origin);
-		return url.origin === location.origin && ['/join', '/play'].includes(url.pathname)
-			? url.pathname + url.search + url.hash
-			: null;
+		const allowed =
+			['/join', '/play'].includes(url.pathname) || /^\/(room|match)\/[\w-]+$/.test(url.pathname);
+		return url.origin === location.origin && allowed ? url.pathname + url.search + url.hash : null;
 	} catch {
 		return null;
 	}
