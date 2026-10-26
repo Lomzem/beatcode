@@ -84,7 +84,7 @@ it.each(['foreign-checkout', 'copied-entrypoint'] as const)(
 					go: true,
 					sourceCommit,
 					// Frozen offline release bytes; never derive approval from executing code.
-					sourceSha256: 'e9e25a01540832b1a9354f287cccd8cc318ca2866a3717f5fa54977ba5c781f4',
+					sourceSha256: '3385252e889155f6b081658198a01d15bf74c77c7a881747cf454c5bf351caaa',
 					decisionPolicySha256: 'd4e0591e44e994a16dd9ad19166349132f963dd39a64688b5509acb2e1b072ca',
 					executionPolicy: 'staged-input-reference-10s-aggregate-vm-v3',
 					maxJobs: 150,

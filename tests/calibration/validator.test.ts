@@ -1,12 +1,17 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { convexTest } from 'convex-test';
 import { gzipSync } from 'node:zlib';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import schema from '../../convex/schema';
 import { internal } from '../../convex/_generated/api';
 import { sha256 } from '../../judge/controller';
 
-// SDK fake only: the real action, adapter, judge preflight/checker, and ledger run.
-// This oracle recognizes a fixed valid corpus. It does not execute C++ or a shell.
+// The SDK is faked; the real action, adapter, judge preflight/checker, and ledger run.
+// This oracle recognizes a fixed valid corpus. The first test also compiles and
+// executes the generated wrapper locally, independently of the SDK oracle.
 const sdk = vi.hoisted(() => ({
 	measurement: false,
 	createGate: undefined as Promise<void> | undefined,
@@ -137,7 +142,7 @@ afterEach(() => {
 	sdk.slowWallMs = 6000;
 });
 
-it('validates all 3 samples and 50 secrets plus malformed controls in two separately persisted bounded jobs (SDK fake)', async () => {
+it('validates all 3 samples and 50 secrets plus malformed controls in two bounded jobs (SDK fake and local C++ wrapper)', async () => {
 	vi.useFakeTimers();
 	vi.stubEnv('CONVEX_DEPLOYMENT', 'dev:descriptive-scorpion-877');
 	vi.stubEnv('CONVEX_CLOUD_URL', 'https://descriptive-scorpion-877.convex.cloud');
@@ -152,7 +157,15 @@ it('validates all 3 samples and 50 secrets plus malformed controls in two separa
 		...secrets.map((input) => ({ kind: 'secret', input, answer: 'VALID' }))
 	];
 	const blob = gzipSync(JSON.stringify({ format: 'beatcode-tests/1', tests: originalTests }));
-	const validator = '#include <iostream>\nint main(){return 42;}';
+	// Deliberately omits iostream: the wrapper owns its output dependency.
+	const validator = `#include <cstdio>
+int main(){
+  int n, value;
+  if(std::scanf("%d", &n)!=1 || n<=0) return 1;
+  while(n--) if(std::scanf("%d", &value)!=1) return 1;
+  char extra;
+  return std::scanf(" %c", &extra)==EOF ? 42 : 1;
+}`;
 	const { judgeEnvId } = await t.mutation(internal.problems._registerEnvironment, {
 		envId: 'sdk-fixture-staged-input',
 		modalImageId: 'im-fixture',
@@ -198,6 +211,22 @@ it('validates all 3 samples and 50 secrets plus malformed controls in two separa
 	}
 	const first = await t.action(internal.calibration._job, { ...job, index: 0 });
 	expect(first.verdict, JSON.stringify({ first, attempts: sdk.attempts })).toBe('AC');
+	const dir = mkdtempSync(join(tmpdir(), 'beatcode-validator-wrapper-'));
+	try {
+		const binary = join(dir, 'validator');
+		execFileSync('g++', ['-x', 'c++', '-std=gnu++20', '-O2', '-o', binary, '-'], {
+			input: sdk.attempts[0].source,
+			timeout: 15000
+		});
+		for (const [input, output] of [
+			[samples[0], 'VALID'],
+			['', 'INVALID']
+		]) {
+			expect(execFileSync(binary, [], { input, encoding: 'utf8', timeout: 1000 })).toBe(output);
+		}
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
 	const second = await t.action(internal.calibration._job, { ...job, index: 1 });
 	expect(second.verdict).toBe('AC');
 	expect(sdk.attempts.map((a) => a.inputs)).toEqual([
