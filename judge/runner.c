@@ -12,6 +12,7 @@
 #include <linux/audit.h>
 #include <linux/filter.h>
 #include <linux/seccomp.h>
+#include <limits.h>
 #include <mntent.h>
 #include <poll.h>
 #include <signal.h>
@@ -95,6 +96,98 @@ static int count_nobody(void) {
     fclose(f);
   }
   closedir(d); return n;
+}
+// Parse unsigned decimal status fields without signs, truncation, or wraparound.
+static int status_number(const char **text, unsigned long long *value) {
+  const char *p = *text; p += strspn(p, " \t");
+  if (*p < '0' || *p > '9') return -1;
+  unsigned long long n = 0;
+  do {
+    unsigned digit = (unsigned)(*p++ - '0');
+    if (n > (ULLONG_MAX - digit) / 10) return -1;
+    n = n * 10 + digit;
+  } while (*p >= '0' && *p <= '9');
+  *text = p; *value = n; return 0;
+}
+// /proc lists process leaders, so threads are not charged again. Shared mappings
+// across processes deliberately count once per process, matching the aggregate AS policy.
+// Returns 1 above the limit, 0 only for a complete bounded sample, -1 if unknown.
+static int aggregate_vm_exceeded(unsigned long long limit_kb) {
+  DIR *d = opendir("/proc"); if (!d) return -1;
+  unsigned long long total = 0; int result = 0;
+  for (;;) {
+    errno = 0; struct dirent *e = readdir(d);
+    if (!e) { if (errno) result = -1; break; }
+    if (!e->d_name[0] || strspn(e->d_name, "0123456789") != strlen(e->d_name)) continue;
+    char path[4096];
+    int length = snprintf(path, sizeof path, "/proc/%s/status", e->d_name);
+    if (length < 0 || (size_t)length >= sizeof path) { result = -1; break; }
+    // Retry only this PID: restarting the whole scan lets unrelated exiting
+    // helpers consume each other's retry allowance.
+    for (int attempt = 0; attempt < 3; attempt++) {
+      FILE *f = fopen(path, "r");
+      if (!f) { if (errno != ENOENT && errno != ESRCH) result = -1; break; }
+      char *line = NULL; size_t size = 0;
+      int uid_seen = 0, nobody = 0, vm_seen = 0, dead = 0, threads_seen = 0, failed = 0;
+      unsigned long long vm_kb = 0, threads = 0;
+      while (getline(&line, &size, f) >= 0) {
+        const char *p;
+        if (!strncmp(line, "Uid:", 4)) {
+          p = line + 4;
+          for (int i = 0; i < 4; i++) {
+            unsigned long long uid;
+            if (status_number(&p, &uid) || uid > UINT_MAX) { failed = 1; break; }
+            if (uid == NOBODY) nobody = 1;
+          }
+          p += strspn(p, " \t");
+          if (failed || strcmp(p, "\n")) { failed = 1; break; }
+          uid_seen = 1;
+        } else if (!strncmp(line, "VmSize:", 7)) {
+          p = line + 7;
+          if (status_number(&p, &vm_kb)) { failed = 1; break; }
+          p += strspn(p, " \t");
+          if (strcmp(p, "kB\n")) { failed = 1; break; }
+          vm_seen = 1;
+        } else if (!strncmp(line, "State:", 6)) {
+          p = line + 6; p += strspn(p, " \t");
+          dead = *p == 'Z' || *p == 'X';
+        } else if (!strncmp(line, "Threads:", 8)) {
+          p = line + 8;
+          if (status_number(&p, &threads)) { failed = 1; break; }
+          p += strspn(p, " \t");
+          if (strcmp(p, "\n")) { failed = 1; break; }
+          threads_seen = 1;
+        }
+      }
+      if (!feof(f) || ferror(f)) failed = 1;
+      free(line);
+      if (fclose(f)) { result = -1; break; }
+      // A zombie leader can still have live threads. Only a dead single-thread
+      // process is known to have released its address space when VmSize is absent.
+      if (failed || !uid_seen || (nobody && !vm_seen && !(dead && threads_seen && threads == 1))) {
+        // An opened status can become empty or fail with ESRCH when a helper is
+        // reaped. Only confirmed absence permits skipping it. A still-visible PID
+        // may be live or reused: reopen its status and account it afresh.
+        struct stat st;
+        if (fstatat(dirfd(d), e->d_name, &st, AT_SYMLINK_NOFOLLOW)) {
+          if (errno == ENOENT || errno == ESRCH) break;
+          result = -1;
+          break;
+        }
+        if (attempt == 2) { result = -1; break; }
+        continue;
+      }
+      if (nobody && vm_seen) {
+        // Compare before adding: both the sum and the verdict remain safe on overflow.
+        if (vm_kb > limit_kb - total) { result = 1; break; }
+        total += vm_kb;
+      }
+      break;
+    }
+    if (result) break;
+  }
+  if (closedir(d)) result = -1;
+  return result;
 }
 // kill(-1) from a process running as 65534 signals every 65534 process, including setsid'd daemons.
 static void sweep_once(void) {
@@ -232,7 +325,10 @@ static int ipc_cleanup(void) {
 int main(int argc, char **argv) {
   if (argc < 14 || strcmp(argv[12], "--")) { fprintf(stderr, "{\"status\":\"usage\"}\n"); return 2; }
   int compile = !strcmp(argv[1], "compile");
-  long wall = atol(argv[2]), cpu = atol(argv[3]), as_mb = atol(argv[4]), stack_mb = atol(argv[5]), fsize_kb = atol(argv[6]);
+  long wall = atol(argv[2]), cpu = atol(argv[3]), stack_mb = atol(argv[5]), fsize_kb = atol(argv[6]);
+  char *as_end; errno = 0; long as_mb = strtol(argv[4], &as_end, 10);
+  if (errno || as_end == argv[4] || *as_end || as_mb < 0 || (unsigned long long)as_mb > ((unsigned long long)RLIM_INFINITY >> 20)) return 2;
+  unsigned long long as_kb = (unsigned long long)as_mb * 1024;
   long nofile = atol(argv[7]), cap = atol(argv[8]), guard_mb = atol(argv[9]), disk_mb = atol(argv[10]);
   char **cargv = argv + 13;
   // Deny /proc/<runner>/fd/2 even when the underlying pipe is writable.
@@ -297,7 +393,7 @@ int main(int argc, char **argv) {
   if (!compile) fcntl(in[1], F_SETFL, O_NONBLOCK);
   char *buf = malloc(cap + 2); long got = 0;
   char ib[65536]; ssize_t ilen = 0, ioff = 0; int in_eof = compile, child_in_open = !compile;
-  int status = 0, reaped = 0, tle = 0, ole = 0, mle = 0, disk = 0;
+  int status = 0, reaped = 0, tle = 0, ole = 0, mle = 0, disk = 0, accounting_failed = 0;
   struct rusage ru; memset(&ru, 0, sizeof ru);
   while (!reaped) {
     long long rem = wall - (now_ms() - t0);
@@ -327,6 +423,11 @@ int main(int argc, char **argv) {
       struct pollfd drain = {0, POLLIN, 0};
       if (poll(&drain, 1, 0) > 0) { ssize_t r = read(0, ib, sizeof ib); if (r <= 0) in_eof = 1; }
     }
+    if (!compile && as_mb > 0) {
+      int exceeded = aggregate_vm_exceeded(as_kb);
+      if (exceeded < 0) { accounting_failed = 1; break; }
+      if (exceeded) { mle = 1; break; }
+    }
     long av = mem_avail_mb(memfd); if (av >= 0 && av < min_avail) min_avail = av;
     if (av >= 0 && av < guard_mb) { mle = 1; break; }
     long used = disk_used_mb(); if (used < 0 || av < 0) { disk = 1; break; }
@@ -354,7 +455,7 @@ int main(int argc, char **argv) {
   }
   int promotion_failed = compile && reaped && WIFEXITED(status) && WEXITSTATUS(status) == 0 && left == 0 && !tle && !ole && !mle && !disk && promote_binary();
   fwrite(buf, 1, got > cap ? cap + 1 : got, stdout); fflush(stdout);
-  const char *st = (left != 0 || ipc_failed || wipe_failed) ? "leftover" : promotion_failed ? "re" : mle ? "mle" : disk ? "disk" : ole ? "ole" : tle ? "tle" : WIFSIGNALED(status) ? "signal" : WEXITSTATUS(status) ? "re" : "ok";
+  const char *st = (left != 0 || ipc_failed || wipe_failed) ? "leftover" : accounting_failed ? "ie" : promotion_failed ? "re" : mle ? "mle" : disk ? "disk" : ole ? "ole" : tle ? "tle" : WIFSIGNALED(status) ? "signal" : WEXITSTATUS(status) ? "re" : "ok";
   long cpums = ru.ru_utime.tv_sec * 1000 + ru.ru_utime.tv_usec / 1000 + ru.ru_stime.tv_sec * 1000 + ru.ru_stime.tv_usec / 1000;
   fprintf(stderr, "{\"status\":\"%s\",\"exitCode\":%d,\"signal\":%d,\"wallMs\":%lld,\"cpuMs\":%ld,\"maxrssKb\":%ld,\"outBytes\":%ld,\"leftover\":%d,\"sweeps\":%d,\"minAvailMb\":%ld,\"diskPeakMb\":%ld,\"diskBaseMb\":%ld,\"v\":3}\n",
           st, WIFEXITED(status) ? WEXITSTATUS(status) : -1, WIFSIGNALED(status) ? WTERMSIG(status) : 0, wall_ms, cpums,

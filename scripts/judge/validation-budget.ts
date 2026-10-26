@@ -53,7 +53,9 @@ export function reserve(label: string, seconds = 40, builder = false) {
 				(builder
 					? (8 * 0.1419) / 3600 + (32 * 0.024) / 3600
 					: 0.1419 / 3600 + (0.75 * 0.024) / 3600);
-			if (reserved + seconds > 2000 || dollars + creditEstimate > 1)
+			// Release qualification extends the same ledger by 4000s; retain all prior charges.
+			// The existing $1 validation ceiling and $0 net-spend policy remain in force.
+			if (reserved + seconds > 6000 || dollars + creditEstimate > 1)
 				return yield* new OperatorError({ message: 'VALIDATION_BUDGET' });
 			yield* recordEffect({
 				event: 'reserved',
