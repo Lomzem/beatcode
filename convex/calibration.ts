@@ -78,9 +78,11 @@ function validatorExecution(original: string, blob: Uint8Array, index: number) {
 					}))
 				];
 	return {
-		// Preserve the original exit-42 convention without accepting a malformed control.
+		// Validators define int main() and return 42 for valid input, another code
+		// for invalid input. They must return rather than call exit: this wrapper
+		// translates that return code into the trusted checker's text protocol.
 		source:
-			'#define main beatcode_validator_main\n' +
+			'#include <iostream>\n#define main beatcode_validator_main\n' +
 			original +
 			'\n#undef main\nint main(){int code=beatcode_validator_main();std::cout<<(code==42?"VALID":"INVALID");return 0;}\n',
 		samples: tests
