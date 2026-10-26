@@ -285,7 +285,13 @@ function trailer(bytes: Buffer): Trailer {
 // /work is root-owned 0755; replacing the file under umask 077 creates mode 0600.
 const STAGE_INPUT =
 	'set -eu; umask 077; rm -f -- /work/current-input; cat > /work/current-input; exec /opt/judge/runner "$@" < /work/current-input';
-const clip = (s: string, bytes: number) => Buffer.from(s).subarray(0, bytes).toString('utf8');
+const clip = (s: string, bytes: number) => {
+	const encoded = Buffer.from(s);
+	if (encoded.byteLength <= bytes) return s;
+	let end = bytes;
+	while (end > 0 && (encoded[end] & 0xc0) === 0x80) end--;
+	return encoded.subarray(0, end).toString('utf8');
+};
 const diagnostics = (s: string) => clip(s.replace(/\/(?:[^\s:/]+\/)+/g, '<sys>/'), 16384);
 
 /** Contestant entry point: the per-test ceiling always remains 3000ms. */

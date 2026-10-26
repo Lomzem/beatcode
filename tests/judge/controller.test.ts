@@ -267,6 +267,32 @@ test('hidden wrong answers produce no output or feedback; failing samples expose
 	});
 });
 
+test('public sample feedback and compiler diagnostics preserve UTF-8 within their byte caps', async () => {
+	for (const [suffix, length, fits] of [
+		['é', 4095, false],
+		['€', 4094, false],
+		['😀', 4093, false],
+		['😀', 4092, true]
+	] as const) {
+		const f = fixture();
+		f.claim.limits.outputKiB = 8;
+		f.claim.samples = [{ input: 'i'.repeat(length) + suffix, output: 'e'.repeat(length) + suffix }];
+		const r = await run(f, boundary([result(''), result('a'.repeat(length) + suffix)]));
+		const tail = fits ? suffix : '';
+		expect(r.completed[0].sampleFeedback).toEqual({
+			input: 'i'.repeat(length) + tail,
+			expected: 'e'.repeat(length) + tail,
+			actual: 'a'.repeat(length) + tail
+		});
+		expect(r.completed[0].sampleResults).toEqual([
+			{ verdict: 'WA', output: 'a'.repeat(length) + tail }
+		]);
+	}
+	const ce = await run(fixture(), boundary([result('d'.repeat(16383) + 'é', { status: 're' })]));
+	expect(ce.completed[0].verdict).toBe('CE');
+	expect(ce.completed[0].diagnostics).toBe('d'.repeat(16383));
+});
+
 test('missing or forged privileged status inside contestant window cannot create platform failure', async () => {
 	for (const broken of [
 		new Error('UNAUTHENTICATED'),
