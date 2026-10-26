@@ -24,6 +24,13 @@ const verify = Effect.scoped(
 				message:
 					'Review first; set BEATCODE_ALLOW_CONTAINMENT=reviewed only for authorized bounded validation'
 			});
+		const filter = process.env.BEATCODE_VALIDATION_PROBES;
+		const selected = filter?.split(',').map((name) => name.trim());
+		if (selected?.some((name) => !name || !containmentCases.some((probe) => probe.name === name)))
+			return yield* new OperatorError({ message: 'CONTAINMENT_PROBE_SELECTION' });
+		const probes = selected
+			? containmentCases.filter((probe) => selected.includes(probe.name))
+			: containmentCases;
 		const app = yield* operatorSync('VALIDATION_CONFIG', validationApp);
 		const metadata = yield* operatorSync('IMAGE_METADATA_READ', () =>
 			JSON.parse(readFileSync(process.argv[2] ?? 'judge/image.json', 'utf8'))
@@ -36,6 +43,7 @@ const verify = Effect.scoped(
 		const provider = modalProvider(client, app);
 		const report: {
 			name: string;
+			qualificationScope: 'diagnostic' | 'full';
 			verdict: string;
 			expected: string;
 			counters?: Result['metrics'];
@@ -45,15 +53,16 @@ const verify = Effect.scoped(
 			trailerStatuses: string[];
 			strictVlaRejected?: boolean;
 			cleanupScheduled: boolean;
+			failure?: {
+				code: 'CONTROLLER_PREFLIGHT' | 'EXEC_LOST' | 'UNKNOWN';
+				timedOut?: boolean;
+				lowMemory?: boolean;
+			};
 			runnerCounters: Record<string, number>[];
 		}[] = [];
 		// Sequential sandboxes, 40 s each, no retries. Compile/run source only in Modal.
 		yield* Effect.gen(function* () {
-			for (const probe of containmentCases.filter(
-				(p) =>
-					!process.env.BEATCODE_VALIDATION_PROBES ||
-					process.env.BEATCODE_VALIDATION_PROBES.split(',').includes(p.name)
-			)) {
+			for (const probe of probes) {
 				const strict = probe.profile === 'strict';
 				const blob = strict
 					? gzipSync(
@@ -93,6 +102,7 @@ const verify = Effect.scoped(
 				};
 				const row: (typeof report)[number] = {
 					name: probe.name,
+					qualificationScope: selected ? 'diagnostic' : 'full',
 					verdict: 'missing',
 					expected: probe.expected,
 					cleanupScheduled: false,
@@ -260,6 +270,14 @@ const verify = Effect.scoped(
 							},
 							async fail(failure) {
 								row.verdict = failure.failureClass;
+								row.failure = {
+									code:
+										failure.code === 'CONTROLLER_PREFLIGHT' || failure.code === 'EXEC_LOST'
+											? failure.code
+											: 'UNKNOWN',
+									...(failure.timedOut === undefined ? {} : { timedOut: failure.timedOut }),
+									...(failure.lowMemory === undefined ? {} : { lowMemory: failure.lowMemory })
+								};
 							},
 							async retryTermination(id) {
 								row.cleanupScheduled = true;
@@ -278,11 +296,31 @@ const verify = Effect.scoped(
 						: ['many-file-disk-growth', 'per-attempt-disk-baseline'].includes(probe.name)
 							? 'disk'
 							: probe.name === 'fork-bomb'
-								? 'tle'
+								? row.verdict === 'MLE'
+									? 'mle'
+									: 'tle'
 								: undefined;
 				if (requiredStatus && row.trailerStatuses[1] !== requiredStatus)
 					row.verdict = 'wrong_guard';
+				if (
+					['aggregate-address-space', 'memory-burst'].includes(probe.name) &&
+					row.verdict === 'MLE' &&
+					row.trailerStatuses[1] !== 'mle'
+				)
+					row.verdict = 'wrong_guard';
+				if (
+					probe.name === 'directory-cleanup-depth' &&
+					row.verdict === 'RE' &&
+					row.trailerStatuses[1] !== 'leftover'
+				)
+					row.verdict = 'wrong_guard';
 				if (probe.name === 'strict-vla' && !row.strictVlaRejected)
+					row.verdict = 'wrong_compile_failure';
+				if (
+					probe.name === 'compiler-memory-blowup' &&
+					row.verdict === 'CE' &&
+					row.trailerStatuses[0] !== 'mle'
+				)
 					row.verdict = 'wrong_compile_failure';
 				if (row.runnerCounters.some((c) => c.leftover !== 0)) row.verdict = 'leftover_processes';
 				report.push(row);
@@ -301,7 +339,13 @@ const verify = Effect.scoped(
 			process.argv[3] ?? resolve(evidenceDir, 'containment-results.json'),
 			JSON.stringify(report, null, 2) + '\n'
 		);
-		if (report.some((r) => !r.expected.split('|').includes(r.verdict) || r.cleanupScheduled))
+		// A filtered invocation is diagnostic even if it explicitly names every probe.
+		if (
+			selected ||
+			report.length !== containmentCases.length ||
+			report.length === 0 ||
+			report.some((r) => !r.expected.split('|').includes(r.verdict) || r.cleanupScheduled)
+		)
 			process.exitCode = 1;
 	})
 );

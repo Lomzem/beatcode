@@ -83,10 +83,10 @@ it.each(['foreign-checkout', 'copied-entrypoint'] as const)(
 					format: 'beatcode-production-calibration/1',
 					go: true,
 					sourceCommit,
-					// Independently reviewed offline release bytes; never derive approval from executing code.
-					sourceSha256: '5c67419daff7738c1a3c6587a2958b920e832f506d227f0a62ec76bb968cffe6',
+					// Frozen offline release bytes; never derive approval from executing code.
+					sourceSha256: 'e9e25a01540832b1a9354f287cccd8cc318ca2866a3717f5fa54977ba5c781f4',
 					decisionPolicySha256: 'd4e0591e44e994a16dd9ad19166349132f963dd39a64688b5509acb2e1b072ca',
-					executionPolicy: 'staged-input-reference-10s-v1',
+					executionPolicy: 'staged-input-reference-10s-aggregate-vm-v3',
 					maxJobs: 150,
 					maxSeconds: 6000,
 					environment,
@@ -136,7 +136,7 @@ export class ConvexHttpClient {
  constructor(){event('constructor');}
  setAdminAuth(){event('admin-auth');}
  clearAuth(){event('clear-auth');}
- async query(){event('query');return {deployment:'prod:careful-greyhound-596',campaign:'calibration-prod-20261023-v1',maxJobs:150,maxSeconds:6000,executionPolicy:'staged-input-reference-10s-v1',pending:0,sharedInFlight:0,jobs:[]};}
+ async query(){event('query');return {deployment:'prod:careful-greyhound-596',campaign:'calibration-prod-20261023-v1',maxJobs:150,maxSeconds:6000,executionPolicy:'staged-input-reference-10s-aggregate-vm-v3',pending:0,sharedInFlight:0,jobs:[]};}
 }`
 			);
 			const preload = join(dir, 'preload.mjs');

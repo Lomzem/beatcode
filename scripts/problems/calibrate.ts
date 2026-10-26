@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { Effect } from 'effect';
+import { EXECUTION_POLICY } from '../../shared/calibrationDeployment.ts';
 import { devCall } from './operator.ts';
 import { OperatorError, operatorSync } from './effects.ts';
 
@@ -38,7 +39,6 @@ const calibrate = Effect.gen(function* () {
 	yield* operatorSync('CALIBRATION_EVIDENCE_WRITE_FAILED', () =>
 		mkdirSync(root, { recursive: true, mode: 0o700 })
 	);
-	const executionPolicy = 'staged-input-reference-10s-v1';
 	const status = () =>
 		Effect.gen(function* () {
 			const receipt = yield* devCall<{ executionPolicy?: string; jobs: Job[] }>(
@@ -46,9 +46,9 @@ const calibrate = Effect.gen(function* () {
 				{}
 			);
 			if (
-				receipt.executionPolicy !== executionPolicy ||
+				receipt.executionPolicy !== EXECUTION_POLICY ||
 				receipt.jobs.some(
-					(j) => j.problemVersionId === problemVersionId && j.executionPolicy !== executionPolicy
+					(j) => j.problemVersionId === problemVersionId && j.executionPolicy !== EXECUTION_POLICY
 				)
 			)
 				return yield* new OperatorError({ message: 'CALIBRATION_POLICY_REQUIRES_FRESH_VERSION' });

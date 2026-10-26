@@ -545,6 +545,7 @@ test('stages each exact input through EOF before timed execution while charging 
 		const starts: string[] = [];
 		const uploads: string[] = [];
 		const commands: string[][] = [];
+		const compileLimits: { addressSpaceMiB: number; reserveMiB: number }[] = [];
 		let currentInput = 'STALE_PREVIOUS_INPUT';
 		const create = b.provider.create;
 		b.provider.create = async (...args) => {
@@ -553,6 +554,8 @@ test('stages each exact input through EOF before timed execution while charging 
 			sb.exec = async (argv, timeout) => {
 				const p = await exec(argv, timeout);
 				const real = runnerArgs(argv);
+				if (real[1] === 'compile')
+					compileLimits.push({ addressSpaceMiB: Number(real[4]), reserveMiB: Number(real[9]) });
 				if (real[1] !== 'run') return p;
 				commands.push(real);
 				const staged = argv[0] === '/bin/sh';
@@ -604,6 +607,7 @@ test('stages each exact input through EOF before timed execution while charging 
 		const r = await pending;
 		expect(starts).toEqual(inputs);
 		expect(uploads).toEqual(inputs);
+		expect(compileLimits).toEqual([{ addressSpaceMiB: 0, reserveMiB: 128 }]);
 		expect(commands).toEqual(
 			Array.from({ length: 2 }, () => [
 				'/opt/judge/runner',
@@ -615,7 +619,7 @@ test('stages each exact input through EOF before timed execution while charging 
 				'1024',
 				'64',
 				'1024',
-				'128',
+				'512',
 				'256',
 				'12',
 				'--',
@@ -696,6 +700,35 @@ test.each(['overflow', 'timeout'] as const)(
 	}
 );
 
+test('admits a verified runner after an eight-second cold identity transport', async () => {
+	vi.useFakeTimers();
+	try {
+		const b = boundary([result(''), result('PUBLIC_ANSWER')]);
+		const create = b.provider.create;
+		b.provider.create = async (...args) => {
+			const sb = await create(...args),
+				exec = sb.exec;
+			sb.exec = async (argv, timeout) => {
+				if (argv[0] === '/usr/bin/sha256sum')
+					await new Promise<void>((resolve) => setTimeout(resolve, 8000));
+				return exec(argv, timeout);
+			};
+			return sb;
+		};
+		const pending = run(fixture(), b);
+		await vi.advanceTimersByTimeAsync(7999);
+		expect(b.receipts.stages).toEqual([]);
+		await vi.advanceTimersByTimeAsync(1);
+		const r = await pending;
+		expect(r.failed).toEqual([]);
+		expect(r.completed[0]?.verdict).toBe('AC');
+		expect(r.stages).toEqual(['compile', 'run']);
+		expect(r.terminated).toBe(1);
+	} finally {
+		vi.useRealTimers();
+	}
+});
+
 test('bounds stalled runner identity transport before opening the contestant window', async () => {
 	vi.useFakeTimers();
 	try {
@@ -722,14 +755,16 @@ test('bounds stalled runner identity transport before opening the contestant win
 			b.receipts.failed.push(failure);
 		};
 		const pending = run(fixture(), b);
-		await vi.advanceTimersByTimeAsync(2999);
+		await vi.advanceTimersByTimeAsync(9999);
 		expect(b.receipts.terminated).toBe(0);
 		expect(b.receipts.failed).toHaveLength(0);
 		await vi.advanceTimersByTimeAsync(1);
 		const r = await pending;
 		expect(r.stages).toEqual([]);
 		expect(r.completed).toEqual([]);
-		expect(r.failed).toEqual([{ failureClass: 'platform', code: 'CONTROLLER_PREFLIGHT' }]);
+		expect(r.failed).toEqual([
+			{ failureClass: 'platform', code: 'CONTROLLER_PREFLIGHT', timedOut: true }
+		]);
 	} finally {
 		vi.useRealTimers();
 	}

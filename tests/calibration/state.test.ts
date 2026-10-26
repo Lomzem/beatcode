@@ -54,15 +54,30 @@ it('calibration limits concurrency, shares the judging budget and refuses mixed-
 		await t.mutation(internal.calibrationState._reserve, job);
 		const receipt = (await t.query(internal.calibrationState._status, {})).jobs[0];
 		const row = await t.run((ctx) => ctx.db.get(receipt.reservationId));
-		const legacy = JSON.parse(row!.detail);
-		delete legacy.executionPolicy;
-		await t.run((ctx) => ctx.db.patch(receipt.reservationId, { detail: JSON.stringify(legacy) }));
-		await expect(
-			t.mutation(internal.calibrationState._reserve, { ...job, repeat: 1 })
-		).rejects.toThrow('CALIBRATION_POLICY');
-		await expect(t.action(internal.calibration._finalize, { problemVersionId })).rejects.toThrow(
-			'CALIBRATION_POLICY'
-		);
+		for (const executionPolicy of [
+			undefined,
+			'mismatched-policy',
+			'staged-input-reference-10s-v1',
+			'staged-input-reference-10s-runtime-guard512-v2'
+		]) {
+			const legacy = JSON.parse(row!.detail);
+			if (executionPolicy === undefined) delete legacy.executionPolicy;
+			else legacy.executionPolicy = executionPolicy;
+			await t.run((ctx) => ctx.db.patch(receipt.reservationId, { detail: JSON.stringify(legacy) }));
+			await expect(
+				t.mutation(internal.calibrationState._reserve, { ...job, repeat: 1 })
+			).rejects.toThrow('CALIBRATION_POLICY');
+			await expect(
+				t.mutation(internal.calibrationState._reserve, {
+					...job,
+					retryOf: receipt.reservationId,
+					retryApproval: 'reviewed-empty-error-once'
+				})
+			).rejects.toThrow('CALIBRATION_POLICY');
+			await expect(t.action(internal.calibration._finalize, { problemVersionId })).rejects.toThrow(
+				'CALIBRATION_POLICY'
+			);
+		}
 		await t.run((ctx) => ctx.db.patch(receipt.reservationId, { detail: row!.detail }));
 		await t.mutation(internal.calibrationState._reserve, { ...job, repeat: 1 });
 		await expect(
