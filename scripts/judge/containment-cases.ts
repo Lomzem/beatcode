@@ -34,7 +34,7 @@ for(long op:ops){errno=0;if(syscall(op,-1L,0L,0L,0L,0L,0L)!=-1||errno!=EPERM){pu
 errno=0;if(syscall(SYS_shmget|0x40000000,0,4096,IPC_CREAT|0666)!=-1||(errno!=EPERM&&errno!=ENOSYS)){puts("ipc-x32-allowed");return 0;}
 int input=getchar();(void)input;
 pid_t child=fork();if(child<0){puts("fork-failed");return 0;}if(child==0){errno=0;int id=shmget(IPC_PRIVATE,4096,IPC_CREAT|0666);_exit(id<0&&errno==EPERM?0:1);}int status=0;if(waitpid(child,&status,0)!=child||!WIFEXITED(status)||WEXITSTATUS(status)!=0){puts("ipc-child-allowed");return 0;}
-pid_t compat=fork();if(compat<0){puts("fork-failed");return 0;}if(compat==0){long result;asm volatile("int $0x80":"=a"(result):"a"(117),"b"(2),"c"(0),"d"(1),"S"(IPC_CREAT|0666):"memory");_exit(1);}if(waitpid(compat,&status,0)!=compat||!WIFSIGNALED(status)){puts("ipc-compat-allowed");return 0;}
+pid_t compat=fork();if(compat<0){puts("fork-failed");return 0;}if(compat==0){long result;asm volatile("int $0x80":"=a"(result):"a"(117),"b"(2),"c"(0),"d"(1),"S"(IPC_CREAT|0666):"memory");_exit(result==-EPERM||result==-ENOSYS?0:1);}if(waitpid(compat,&status,0)!=compat||(!WIFSIGNALED(status)&&(!WIFEXITED(status)||WEXITSTATUS(status)!=0))){puts("ipc-compat-allowed");return 0;}
 struct stat st;if(stat("/work/bin/a.out",&st)||st.st_uid!=0||access("/work/bin/a.out",W_OK)==0||access("main.cpp",F_OK)==0){puts("binary-unprotected");return 0;}
 FILE*other=fopen("/var/tmp/beatcode-state","w");if(other){puts("other-writable");fclose(other);return 0;}
 if(access("/tmp/beatcode-state",F_OK)==0 || access("state",F_OK)==0){puts("dirty");return 0;}
@@ -44,6 +44,52 @@ FILE*f=fopen("/tmp/beatcode-state","w");if(f){fputs("x",f);fclose(f);}f=fopen("s
 			{ input: '2', output: 'clean' },
 			{ input: '3', output: 'clean' }
 		]
+	},
+	{
+		name: 'directory-cleanup',
+		expected: 'AC',
+		source: `
+#include <cstdio>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+int seed(const char*base){
+if(access(base,F_OK)==0||mkdir(base,0700))return 1;
+int fd=open(base,O_RDONLY|O_DIRECTORY);if(fd<0)return 1;
+if(symlinkat("/work/bin/a.out",fd,"protected")||symlinkat(".",fd,"cycle"))return 1;
+for(int i=0;i<32;i++){
+if(mkdirat(fd,"d",0700))return 1;
+int next=openat(fd,"d",O_RDONLY|O_DIRECTORY);if(next<0||fchmod(fd,0000))return 1;
+close(fd);fd=next;
+}
+int file=openat(fd,"state",O_WRONLY|O_CREAT|O_EXCL,0000);
+if(file<0||write(file,"x",1)!=1)return 1;close(file);
+int result=fchmod(fd,0000);close(fd);return result;
+}
+int main(){if(seed("/tmp/beatcode-tree")||seed("state-tree"))return 1;puts("clean");}`,
+		samples: [
+			{ input: '1', output: 'clean' },
+			{ input: '2', output: 'clean' }
+		]
+	},
+	{
+		name: 'directory-cleanup-depth',
+		expected: 'RE',
+		// Bounded adversarial tree; require the public cleanup verdict, not a particular depth limit.
+		source: `
+#include <cstdio>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+int main(){
+int fd=open("/tmp",O_RDONLY|O_DIRECTORY);if(fd<0)return 1;
+for(int i=0;i<256;i++){
+if(mkdirat(fd,"d",0700))return 1;
+int next=openat(fd,"d",O_RDONLY|O_DIRECTORY);if(next<0)return 1;
+close(fd);fd=next;
+}
+close(fd);puts("done");}`,
+		samples: [{ input: '', output: 'done' }]
 	},
 	{
 		name: 'runner-fd-forgery',
@@ -113,8 +159,27 @@ int main(){char b[1024*1024]={};for(int i=0;i<40;i++){char p[128];sprintf(p,"/tm
 		samples: [{ input: '', output: 'bounded' }]
 	},
 	{
+		name: 'compiler-memory-blowup',
+		expected: 'CE',
+		// Force a large compiler-owned template expansion, without raising any limits.
+		source: `#include <utility>
+using Pressure = std::make_index_sequence<16*1024*1024>;
+Pressure pressure;
+int main(){}`,
+		samples: [{ input: '', output: '' }]
+	},
+	{
+		name: 'aggregate-address-space',
+		expected: 'MLE',
+		// Reserve address space without populating it: physical-memory telemetry alone cannot catch this.
+		source: `#include <sys/mman.h>
+#include <unistd.h>
+int main(){for(int i=0;i<8;i++)if(fork()==0){if(mmap(nullptr,64*1024*1024,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0)==MAP_FAILED)_exit(2);for(;;)pause();}for(;;)pause();}`,
+		samples: [{ input: '', output: '' }]
+	},
+	{
 		name: 'memory-burst',
-		expected: 'MLE|sandbox_lost',
+		expected: 'MLE',
 		source: `
 #include <cstdlib>
 #include <cstring>
@@ -158,7 +223,7 @@ fd=socket(AF_INET,SOCK_DGRAM,0);a.sin_port=htons(53);int udp=sendto(fd,"x",1,0,(
 	},
 	{
 		name: 'fork-bomb',
-		expected: 'TLE',
+		expected: 'TLE|MLE',
 		source: `#include <unistd.h>
 int main(){for(;;)if(fork()<0)usleep(1000);}`,
 		samples: [{ input: '', output: '' }]

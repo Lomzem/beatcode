@@ -418,10 +418,11 @@ function judgeWorkflow(
 				active = yield* transport(() => sink.noteSandbox(sb.id));
 				if (!active) return;
 				// Verify trusted image identity before any contestant-controlled exec. No shell interpolation.
+				// Cold transport can exceed the hash process deadline; bound dispatch and streams separately.
 				const [hash, , code] = yield* deadline(
 					Effect.gen(function* () {
 						const check = yield* transport(() =>
-							sb.exec(['/usr/bin/sha256sum', '/opt/judge/runner'], 3000)
+							sb.exec(['/usr/bin/sha256sum', '/opt/judge/runner'], 5000)
 						);
 						return yield* Effect.all(
 							[
@@ -433,7 +434,7 @@ function judgeWorkflow(
 							{ concurrency: 'unbounded' }
 						);
 					}),
-					3000
+					10000
 				);
 				if (
 					code !== 0 ||
@@ -452,7 +453,9 @@ function judgeWorkflow(
 					mode === 'compile' ? '65536' : '1024',
 					'64',
 					String(mode === 'compile' ? 16384 : l.outputKiB * 1024),
-					'128',
+					// Preserve the sandbox's 512 MiB reserve during contestant execution.
+					// Compile retains its separate allowance; ADR0004 records the policy change.
+					String(mode === 'run' ? 512 : 128),
 					mode === 'compile' ? '512' : '256',
 					String(diskBase),
 					'--',
@@ -575,7 +578,7 @@ function judgeWorkflow(
 							pendingFailure = {
 								failureClass: window ? 'sandbox_lost' : 'platform',
 								code: window ? 'EXEC_LOST' : 'CONTROLLER_PREFLIGHT',
-								...(window ? { timedOut, lowMemory } : {})
+								...(window ? { timedOut, lowMemory } : timedOut ? { timedOut: true } : {})
 							};
 					})
 				)
