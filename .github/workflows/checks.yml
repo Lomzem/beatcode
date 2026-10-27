@@ -2,6 +2,11 @@ name: Checks
 on:
   pull_request:
   workflow_call:
+    secrets:
+      CONVEX_CI_DEPLOY_KEY:
+        required: true
+      CLERK_CI_SECRET_KEY:
+        required: true
     outputs:
       authenticated-result:
         description: Required trusted authenticated CI result

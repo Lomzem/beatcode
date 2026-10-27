@@ -11,6 +11,9 @@ jobs:
     permissions:
       contents: read
     uses: ./.github/workflows/checks.yml
+    secrets:
+      CONVEX_CI_DEPLOY_KEY: ${{ secrets.CONVEX_CI_DEPLOY_KEY }}
+      CLERK_CI_SECRET_KEY: ${{ secrets.CLERK_CI_SECRET_KEY }}
   # A newer queued job can replace a pending one in the shared authenticated lock; fail instead of skipping deploy silently.
   require-authenticated-ci:
     if: always() && github.repository == 'Lomzem/beatcode' && github.ref == 'refs/heads/main'
