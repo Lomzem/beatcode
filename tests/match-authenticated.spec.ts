@@ -155,6 +155,10 @@ test('two authenticated players create, join, ready, preserve code, and concede 
 					await a.keyboard.press('Escape');
 					await a.keyboard.press('Tab');
 					await expect(editor).not.toBeFocused();
+					await a.keyboard.press('Shift+Tab');
+					await expect(editor).toBeFocused();
+					await a.keyboard.press('Escape');
+					await a.keyboard.press('Tab');
 					expect(await a.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
 						true
 					);

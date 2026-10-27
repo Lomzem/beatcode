@@ -162,6 +162,7 @@
 					Prec.highest(assist.of(assistance())),
 					wrapping.of(preferences.wrap ? EditorView.lineWrapping : []),
 					EditorView.contentAttributes.of({
+						tabindex: '0',
 						'aria-label': 'C++ solution',
 						'aria-describedby': 'editor-help',
 						role: 'textbox',
