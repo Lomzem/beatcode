@@ -1,0 +1,40 @@
+{
+  "format": "beatcode-judge-qualification-attempt/1",
+  "at": "2026-10-27T04:27:53.590995+00:00",
+  "sourceCommit": "954101684a17bd2a0eef70a5df74cd129b1a40b2",
+  "releaseSourceSha256": "3385252e889155f6b081658198a01d15bf74c77c7a881747cf454c5bf351caaa",
+  "runnerSourceSha256": "03f84e8650372ddb57254d379e5c9d409b2ceb020d6e321dfc68677e5b955bad",
+  "build": {
+    "completed": true,
+    "imageId": "im-iNZSnyNHAVqD5ehW32BI0h",
+    "imageIdRecoveredFrom": "Provider SandboxInfo for the exact ledger-created inspection sandbox",
+    "binaryInspected": false
+  },
+  "inspection": {
+    "result": "failed",
+    "code": "IMAGE_INSPECTION_TIMEOUT",
+    "outerDeadlineMs": 3000,
+    "hashProcessDeadlineMs": 3000,
+    "transportPhaseAtTimeout": "unknown",
+    "retried": false
+  },
+  "qualification": {
+    "dispatchedCases": 0,
+    "requiredCases": 18,
+    "additionalMemoryChecksDispatched": 0,
+    "requiredAdditionalMemoryChecks": 2,
+    "qualified": false
+  },
+  "cleanup": {
+    "allFinished": true,
+    "knownIds": 136,
+    "reservedSeconds": 6100,
+    "creditEstimate": 0.5905466666666647
+  },
+  "limits": {
+    "approvedCumulativeValidationSeconds": 6900,
+    "estimatedValidationDollars": 1,
+    "noAutomaticRetry": true
+  },
+  "history": "Previous cloud qualification reports and every reservation/failure remain retained. This failed inspection does not certify the repaired runner."
+}
