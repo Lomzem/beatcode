@@ -1,14 +1,16 @@
 import { expect, test } from '@playwright/test';
 
-test('the newest scored or sample attempt replaces or clears compiler diagnostics', async ({
-	context,
-	page
-}) => {
+test.beforeEach(async ({ context, page }) => {
 	await context.route('**/*', (route) =>
 		new URL(route.request().url()).hostname === '127.0.0.1' ? route.continue() : route.abort()
 	);
 	await context.routeWebSocket(/.*/, (socket) => socket.close());
 	await page.goto('/');
+});
+
+test('the newest scored or sample attempt replaces or clears compiler diagnostics', async ({
+	page
+}) => {
 	const code = page.getByRole('tab', { name: 'Code', exact: true });
 	if (await code.isVisible()) await code.click();
 	await expect(page.getByRole('textbox', { name: 'C++ solution' })).toBeVisible();
@@ -53,4 +55,32 @@ test('the newest scored or sample attempt replaces or clears compiler diagnostic
 		else await expect(diagnostics).toHaveCount(0);
 		await expect(page.getByText('obsolete compiler message', { exact: false })).toHaveCount(0);
 	}
+});
+
+test('sample history shows the overall TLE alongside completed AC sample results', async ({
+	page
+}) => {
+	const results = page.getByRole('tab', { name: 'Results', exact: true });
+	if (await results.isVisible()) await results.click();
+	await page.evaluate(() => {
+		window.dispatchEvent(
+			new CustomEvent('public-attempts', {
+				detail: {
+					ownSubmissions: [],
+					ownSampleRuns: [
+						{
+							sampleRunId: 'public-sample',
+							createdAt: 100,
+							status: 'done',
+							verdict: 'TLE',
+							diagnostics: null,
+							results: [{ verdict: 'AC', output: '5' }]
+						}
+					]
+				}
+			})
+		);
+	});
+	await expect(page.getByText('Sample run TLE', { exact: true })).toBeVisible();
+	await expect(page.getByText('Sample 1: AC', { exact: true })).toBeVisible();
 });
