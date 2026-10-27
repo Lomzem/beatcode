@@ -1,10 +1,11 @@
 // Public fixtures for the trusted runner boundary, locally in containers or in Modal.
-// Ordinary fork/wait helpers race /proc sampling while staying well below the AS cap.
+// At most parent + one worker + one helper: gVisor reserves the full 64 MiB
+// stack per process, so four workers could exceed the aggregate AS cap by themselves.
 export const shortLivedHelpersSource = `#include <sys/prctl.h>
 #include <sys/wait.h>
 #include <unistd.h>
 int main(void) {
-  for (int worker = 0; worker < 4; worker++) {
+  for (int worker = 0; worker < 1; worker++) {
     pid_t pid = fork(); if (pid < 0) return 9;
     if (!pid) {
       for (int i = 0; i < 128; i++) {
@@ -19,7 +20,7 @@ int main(void) {
       _exit(0);
     }
   }
-  for (int worker = 0; worker < 4; worker++) {
+  for (int worker = 0; worker < 1; worker++) {
     int status;
     if (wait(&status) < 0 || !WIFEXITED(status) || WEXITSTATUS(status)) return 9;
   }
