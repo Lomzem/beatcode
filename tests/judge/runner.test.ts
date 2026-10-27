@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, expect, test } from 'vitest';
+import { shortLivedHelpersSource } from '../../scripts/judge/containment-cases';
 
 // The runner runs as root and changes mounts, so it runs only inside a disposable container.
 const run = promisify(execFile);
@@ -37,27 +38,17 @@ int main(void) {
   for (;;) pause();
 }
 `;
-// Ordinary fork/wait helpers race /proc sampling while staying well below the AS cap.
-const HELPERS = `#include <sys/wait.h>
+// The leader has no mm after pthread_exit, but its live thread still owns memory.
+const LIVE_THREAD = `#include <pthread.h>
 #include <unistd.h>
+static void *linger(void *unused) {
+  (void)unused;
+  for (;;) pause();
+}
 int main(void) {
-  for (int worker = 0; worker < 4; worker++) {
-    pid_t pid = fork(); if (pid < 0) return 9;
-    if (!pid) {
-      for (int i = 0; i < 32; i++) {
-        pid_t helper = fork(); if (helper < 0) _exit(9);
-        if (!helper) { usleep(500); _exit(0); }
-        int status;
-        if (waitpid(helper, &status, 0) != helper || !WIFEXITED(status) || WEXITSTATUS(status)) _exit(9);
-      }
-      _exit(0);
-    }
-  }
-  for (int worker = 0; worker < 4; worker++) {
-    int status;
-    if (wait(&status) < 0 || !WIFEXITED(status) || WEXITSTATUS(status)) return 9;
-  }
-  return write(1, "ok\\n", 3) == 3 ? 0 : 9;
+  pthread_t thread;
+  if (pthread_create(&thread, 0, linger, 0)) return 9;
+  pthread_exit(0);
 }
 `;
 let dir: string;
@@ -79,8 +70,17 @@ beforeAll(async () => {
 		join(dir, 'reservations'),
 		join(dir, 'reservations.c')
 	]);
-	writeFileSync(join(dir, 'helpers.c'), HELPERS);
+	writeFileSync(join(dir, 'helpers.c'), shortLivedHelpersSource);
 	await run('gcc', ['-O2', '-static', '-o', join(dir, 'helpers'), join(dir, 'helpers.c')]);
+	writeFileSync(join(dir, 'live-thread.c'), LIVE_THREAD);
+	await run('gcc', [
+		'-O2',
+		'-static',
+		'-pthread',
+		'-o',
+		join(dir, 'live-thread'),
+		join(dir, 'live-thread.c')
+	]);
 }, 60000);
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -175,5 +175,15 @@ test('short-lived helpers can exit and be reaped below the aggregate address-spa
 			trailer: { status: 'ok', exitCode: 0, outBytes: 3, leftover: 0, v: 3 }
 		});
 	}
+	expect(next).toMatchObject({ exit: 0, trailer: { status: 'ok', exitCode: 0, leftover: 0 } });
+}, 60000);
+
+test('an exited leader with a live thread does not count as released address space', async () => {
+	const [first, next] = await tests(['/opt/judge/live-thread', clean], {
+		wallMs: 2000,
+		asMb: 144
+	});
+	// Unknown live-thread accounting fails closed; this is not a containment pass.
+	expect(first).toMatchObject({ exit: 0, trailer: { status: 'ie', leftover: 0, v: 3 } });
 	expect(next).toMatchObject({ exit: 0, trailer: { status: 'ok', exitCode: 0, leftover: 0 } });
 }, 60000);
