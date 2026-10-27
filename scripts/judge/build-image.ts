@@ -79,7 +79,7 @@ const build = Effect.scoped(
 			const process = yield* operatorAsync('IMAGE_INSPECTION', () =>
 				sandbox.exec(['/usr/bin/sha256sum', '/opt/judge/runner'], {
 					mode: 'binary',
-					timeoutMs: 3000
+					timeoutMs: 5000
 				})
 			);
 			const [out, , code] = yield* Effect.all(
@@ -95,7 +95,8 @@ const build = Effect.scoped(
 			return out.toString();
 		}).pipe(
 			Effect.timeoutOrElse({
-				duration: 3000,
+				// Include cold SDK dispatch/stream setup, as in controller identity checks.
+				duration: 10000,
 				orElse: () => Effect.fail(new OperatorError({ message: 'IMAGE_INSPECTION_TIMEOUT' }))
 			})
 		);
