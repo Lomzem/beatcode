@@ -411,6 +411,73 @@ test('failed staging writes or EOF acknowledgements reject even valid output and
 	}
 });
 
+test.each(['many-tests', 'late-create-response', 'backward-clock'] as const)(
+	'returns TLE before the sandbox lifetime expires from %s overhead',
+	async (scenario) => {
+		vi.useFakeTimers({ toFake: ['Date', 'performance', 'setTimeout', 'clearTimeout'] });
+		try {
+			const f = fixture('scored');
+			const b = boundary([
+				result(''),
+				result('PUBLIC_ANSWER'),
+				...Array.from({ length: 10 }, (_, i) => result(`SECRET_ANSWER_${i}`))
+			]);
+			const create = b.provider.create;
+			const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+			let sandboxExpired = false,
+				clockAdjusted = false;
+			b.provider.create = async (...args) => {
+				const born = performance.now();
+				const sb = await create(...args),
+					exec = sb.exec,
+					terminate = sb.terminate;
+				if (scenario === 'late-create-response') await pause(20000);
+				sb.terminate = async () => {
+					await pause(2000);
+					if (performance.now() - born >= 40000) sandboxExpired = true;
+					await terminate();
+				};
+				sb.exec = async (argv, timeout) => {
+					const phase = runnerArgs(argv)[1];
+					await pause(
+						argv[0] === '/usr/bin/sha256sum'
+							? scenario === 'late-create-response'
+								? 9000
+								: 1000
+							: phase === 'compile'
+								? 10000
+								: 2700
+					);
+					if (
+						scenario === 'backward-clock' &&
+						!clockAdjusted &&
+						performance.now() - born >= 34000
+					) {
+						clockAdjusted = true;
+						vi.setSystemTime(Date.now() - 5000);
+					}
+					if (performance.now() - born >= 40000) {
+						sandboxExpired = true;
+						throw new Error('sandbox lifetime expired');
+					}
+					return exec(argv, timeout);
+				};
+				return sb;
+			};
+			const pending = run(f, b);
+			await vi.advanceTimersByTimeAsync(60000);
+			const r = await pending;
+			expect(r.completed).toEqual([expect.objectContaining({ verdict: 'TLE' })]);
+			expect(r.failed).toEqual([]);
+			expect(sandboxExpired).toBe(false);
+			expect(r.terminated).toBe(1);
+			if (scenario === 'backward-clock') expect(clockAdjusted).toBe(true);
+		} finally {
+			vi.useRealTimers();
+		}
+	}
+);
+
 test('controller-observed execution time enforces aggregate budget despite forged wall counters', async () => {
 	vi.useFakeTimers();
 	try {

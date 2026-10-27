@@ -328,6 +328,8 @@ const verify = Effect.scoped(
 					process.argv[3] ?? resolve(evidenceDir, 'containment-results.json'),
 					JSON.stringify(report, null, 2) + '\n'
 				);
+				// Retain the failed row and cleanup scope; do not allocate later probes.
+				if (!row.expected.split('|').includes(row.verdict) || row.cleanupScheduled) break;
 			}
 		}).pipe(
 			Effect.ensuring(
