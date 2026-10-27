@@ -55,9 +55,9 @@ export function reserve(label: string, seconds = 40, builder = false) {
 					: 0.1419 / 3600 + (0.75 * 0.024) / 3600);
 			// Approved repair allocations retain every charge, including failed qualification.
 			// The existing $1 validation ceiling and $0 net-spend policy remain in force.
-			// User approved +840s (8500s total) before dispatch on 2026-10-27:
-			// https://github.com/Lomzem/beatcode/pull/6#issuecomment-6449396947
-			if (reserved + seconds > 8500 || dollars + creditEstimate > 1)
+			// User approved +40s (8540s total) before dispatch on 2026-10-27:
+			// https://github.com/Lomzem/beatcode/pull/6#issuecomment-6449489007
+			if (reserved + seconds > 8540 || dollars + creditEstimate > 1)
 				return yield* new OperatorError({ message: 'VALIDATION_BUDGET' });
 			yield* recordEffect({
 				event: 'reserved',
