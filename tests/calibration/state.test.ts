@@ -58,7 +58,8 @@ it('calibration limits concurrency, shares the judging budget and refuses mixed-
 			undefined,
 			'mismatched-policy',
 			'staged-input-reference-10s-v1',
-			'staged-input-reference-10s-runtime-guard512-v2'
+			'staged-input-reference-10s-runtime-guard512-v2',
+			'staged-input-reference-10s-aggregate-vm-v3'
 		]) {
 			const legacy = JSON.parse(row!.detail);
 			if (executionPolicy === undefined) delete legacy.executionPolicy;

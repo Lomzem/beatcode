@@ -84,9 +84,9 @@ it.each(['foreign-checkout', 'copied-entrypoint'] as const)(
 					go: true,
 					sourceCommit,
 					// Frozen offline release bytes; never derive approval from executing code.
-					sourceSha256: 'b38ecda8f95e2785e4ea0317ddb06685440ef3713b4021550750a3695aeb8cb1',
+					sourceSha256: '819042e69e602816bd42d56fa4fc1a3a8ea9dad2d77ef236fdfb1a1501be8fb4',
 					decisionPolicySha256: 'd4e0591e44e994a16dd9ad19166349132f963dd39a64688b5509acb2e1b072ca',
-					executionPolicy: 'staged-input-reference-10s-aggregate-vm-v3',
+					executionPolicy: 'staged-input-reference-10s-attempt-budget-v4',
 					maxJobs: 150,
 					maxSeconds: 6000,
 					environment,
@@ -136,7 +136,7 @@ export class ConvexHttpClient {
  constructor(){event('constructor');}
  setAdminAuth(){event('admin-auth');}
  clearAuth(){event('clear-auth');}
- async query(){event('query');return {deployment:'prod:careful-greyhound-596',campaign:'calibration-prod-20261023-v1',maxJobs:150,maxSeconds:6000,executionPolicy:'staged-input-reference-10s-aggregate-vm-v3',pending:0,sharedInFlight:0,jobs:[]};}
+ async query(){event('query');return {deployment:'prod:careful-greyhound-596',campaign:'calibration-prod-20261023-v1',maxJobs:150,maxSeconds:6000,executionPolicy:'staged-input-reference-10s-attempt-budget-v4',pending:0,sharedInFlight:0,jobs:[]};}
 }`
 			);
 			const preload = join(dir, 'preload.mjs');

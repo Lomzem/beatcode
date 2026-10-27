@@ -220,7 +220,7 @@ it.each([false, true])(
 			dispatched.push({ name, args });
 			if (name === 'calibrationState:_status')
 				return {
-					executionPolicy: 'staged-input-reference-10s-aggregate-vm-v3',
+					executionPolicy: 'staged-input-reference-10s-attempt-budget-v4',
 					jobs: [
 						{
 							reservationId: 'selected-primary',
@@ -228,7 +228,7 @@ it.each([false, true])(
 							role: 'timeLimitExceeded',
 							index: 0,
 							repeat: 7,
-							executionPolicy: 'staged-input-reference-10s-aggregate-vm-v3',
+							executionPolicy: 'staged-input-reference-10s-attempt-budget-v4',
 							released: true
 						}
 					]
@@ -293,7 +293,7 @@ it.each([false, true])(
 			...j,
 			reservationId: `receipt-${i}`,
 			problemVersionId: 'version',
-			executionPolicy: 'staged-input-reference-10s-aggregate-vm-v3',
+			executionPolicy: 'staged-input-reference-10s-attempt-budget-v4',
 			released: true,
 			result: {
 				verdict: oldFailure && i === 0 ? 'WA' : 'AC',
@@ -307,7 +307,7 @@ it.each([false, true])(
 		remote.handle = (name, args) => {
 			dispatched.push({ name, args });
 			if (name === 'calibrationState:_status')
-				return { executionPolicy: 'staged-input-reference-10s-aggregate-vm-v3', jobs };
+				return { executionPolicy: 'staged-input-reference-10s-attempt-budget-v4', jobs };
 			if (name === 'problems:_calibrationInput')
 				return {
 					version: {

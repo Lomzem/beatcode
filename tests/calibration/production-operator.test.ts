@@ -66,7 +66,7 @@ vi.mock('convex/browser', () => ({
 					campaign: 'calibration-prod-20261023-v1',
 					maxJobs: 150,
 					maxSeconds: 6000,
-					executionPolicy: 'staged-input-reference-10s-aggregate-vm-v3',
+					executionPolicy: 'staged-input-reference-10s-attempt-budget-v4',
 					pending: 0,
 					sharedInFlight: 0,
 					jobs: sdk.oldError
@@ -78,7 +78,7 @@ vi.mock('convex/browser', () => ({
 									repeat: 0,
 									released: true,
 									creation: 'stopped',
-									executionPolicy: 'staged-input-reference-10s-aggregate-vm-v3',
+									executionPolicy: 'staged-input-reference-10s-attempt-budget-v4',
 									deployment: 'prod:careful-greyhound-596',
 									appId: 'ap-1234567890123456789012',
 									result: { verdict: 'ERROR' }
@@ -152,7 +152,7 @@ const manifest = () => ({
 	// Independently frozen digest of the release boundary with each file containing "reviewed source".
 	sourceSha256: '98a9ee0027b196d374541034909117e13b0476123b9751101086f065e2144832',
 	decisionPolicySha256: hash(ALL_HISTORY_POLICY_SPEC),
-	executionPolicy: 'staged-input-reference-10s-aggregate-vm-v3',
+	executionPolicy: 'staged-input-reference-10s-attempt-budget-v4',
 	maxJobs: 150,
 	maxSeconds: 6000,
 	environment,
