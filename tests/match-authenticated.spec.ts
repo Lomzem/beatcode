@@ -4,8 +4,11 @@ import AxeBuilder from '@axe-core/playwright';
 import { join } from 'node:path';
 import { hostedSignIn, activate, choose } from './e2e/accounts';
 import setupAccounts from './e2e/setup';
+import { observeCards, cardFailureLine, cardNames } from './e2e/card-diagnostics';
+import { observeActivation, activationFailureLine } from './e2e/activation-diagnostics';
 import { observeScoredResult } from './e2e/results';
 import { observePresence, expectPresenceCadence, expectPresenceStopped } from './e2e/presence';
+import { observeClockPings, expectClockNotRestarted } from './e2e/clock';
 
 // Real-account sessions must not be recorded in traces or videos.
 test.use({ trace: 'off', video: 'off' });
@@ -96,6 +99,10 @@ test('two authenticated players create, join, ready, preserve code, and concede 
 		const a = await host.newPage(),
 			b = await guest.newPage();
 		const presence = observePresence(a);
+		const cardProbes = new Map([
+			[a, observeCards(a)],
+			[b, observeCards(b)]
+		]);
 		await a.goto(target! + '/play');
 		await expect(a.getByRole('button', { name: 'Create room', exact: true })).toBeEnabled();
 		await activate(a.getByRole('button', { name: 'Create room', exact: true }));
@@ -118,6 +125,50 @@ test('two authenticated players create, join, ready, preserve code, and concede 
 		await a.reload();
 		await panel(a, 'Code');
 		await expect(editor).toContainText('// reload recovery');
+		// Axe only flags names on unnamed roles as incomplete, so require both lists empty.
+		const naming = await new AxeBuilder({ page: a }).withRules(['aria-prohibited-attr']).analyze();
+		expect([...naming.violations, ...naming.incomplete]).toEqual([]);
+		if (testInfo.project.use.viewport!.width < 640) {
+			const actions = a.getByRole('group', { name: 'Code actions', exact: true });
+			await expect(actions).toBeVisible();
+			const docked = await actions.boundingBox();
+			expect(docked).not.toBeNull();
+			expect(docked!.y + docked!.height).toBeCloseTo(testInfo.project.use.viewport!.height, 0);
+			try {
+				// 320x256 is the CSS viewport equivalent of 1280x1024 at 400%;
+				// this does not exercise browser-chrome zoom or OS text scaling.
+				await a.setViewportSize({ width: 320, height: 256 });
+				for (const textSize of ['100%', '200%']) {
+					await a.evaluate((size) => {
+						document.documentElement.style.fontSize = size;
+						window.scrollTo(0, 0);
+					}, textSize);
+					await expect(async () => {
+						const bounds = await actions.boundingBox();
+						const code = await a.getByRole('tabpanel', { name: 'Code', exact: true }).boundingBox();
+						expect(bounds).not.toBeNull();
+						expect(code).not.toBeNull();
+						expect(bounds!.y).toBeGreaterThanOrEqual(code!.y + code!.height - 1);
+					}).toPass({ timeout: 5000 });
+					await editor.focus();
+					await a.keyboard.press('ControlOrMeta+Home');
+					await a.keyboard.press('Escape');
+					await a.keyboard.press('Tab');
+					await expect(editor).not.toBeFocused();
+					await a.keyboard.press('Shift+Tab');
+					await expect(editor).toBeFocused();
+					await a.keyboard.press('Escape');
+					await a.keyboard.press('Tab');
+					expect(await a.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+						true
+					);
+					expect((await new AxeBuilder({ page: a }).analyze()).violations).toEqual([]);
+				}
+			} finally {
+				await a.evaluate(() => document.documentElement.style.removeProperty('font-size'));
+				await a.setViewportSize(testInfo.project.use.viewport!);
+			}
+		}
 		// The actual Match editor owns selection readability; no mocked auth/editor state.
 		for (const appearance of [
 			'light',
@@ -160,11 +211,11 @@ test('two authenticated players create, join, ready, preserve code, and concede 
 		await expect(editor).not.toBeFocused();
 		await activate(a.getByRole('button', { name: 'Run samples', exact: true }));
 		await panel(a, 'Results');
-		await expect(a.getByText('Sample run done', { exact: true })).toBeVisible();
+		await expect(a.getByText('Sample run AC', { exact: true })).toBeVisible();
 		await expect(a.getByText('Sample 1: AC', { exact: true })).toBeVisible();
 		expect((await new AxeBuilder({ page: a }).analyze()).violations).toEqual([]);
 		// Each chosen effect is sent and received through the real card UI.
-		for (const name of ['Light mode', 'No paste', 'No hints', 'Brain teaser']) {
+		for (const name of ['Light mode', 'No paste', 'No hints', 'Brain teaser'] as const) {
 			for (const [source, receiver] of [
 				[a, b],
 				[b, a]
@@ -172,10 +223,60 @@ test('two authenticated players create, join, ready, preserve code, and concede 
 				await panel(source, 'Cards');
 				const card = source.getByRole('button', { name: new RegExp('^' + name + ' ·') });
 				await expect(card).toBeEnabled({ timeout: 65000 });
-				await activate(card);
-				await expect(
-					receiver.getByRole('listitem').filter({ hasText: new RegExp('^' + name + ' on you ·') })
-				).toBeVisible();
+				let activation: Awaited<ReturnType<typeof observeActivation>>;
+				try {
+					activation = await observeActivation(card);
+				} catch {
+					/* Optional evidence cannot replace activation. */
+				}
+				cardProbes.get(source)!.begin();
+				try {
+					await activate(card);
+					try {
+						await activation?.after();
+					} catch {
+						/* Preserve the original UI path. */
+					}
+					const incoming = receiver
+						.getByRole('listitem')
+						.filter({ hasText: new RegExp('^' + name + ' on you ·') });
+					try {
+						await expect(incoming).toBeVisible();
+					} catch (error) {
+						try {
+							const snapshot = activation?.read();
+							if (snapshot) {
+								const line = activationFailureLine(
+									cardNames[name],
+									source === a ? 'host-to-guest' : 'guest-to-host',
+									snapshot
+								);
+								if (line) console.info(line);
+							}
+							const count = await incoming.count().catch(() => -1);
+							const visible = await incoming.isVisible().catch(() => false);
+							console.info(
+								cardFailureLine(
+									name,
+									source === a ? 'host-to-guest' : 'guest-to-host',
+									cardProbes.get(source)!.read(name),
+									cardProbes.get(receiver)!.read(name),
+									count,
+									visible
+								)
+							);
+						} catch {
+							/* Diagnostic failures must preserve the original assertion error. */
+						}
+						throw error;
+					}
+				} finally {
+					try {
+						await activation?.close();
+					} catch {
+						/* Cleanup cannot replace the original UI failure. */
+					}
+				}
 				await panel(receiver, 'Code');
 				const code = receiver.getByRole('textbox', { name: 'C++ solution', exact: true });
 				await code.focus();
@@ -220,9 +321,19 @@ test('two authenticated players create, join, ready, preserve code, and concede 
 			}
 		}
 		await activate(a.getByRole('button', { name: 'Concede match', exact: true }));
+		await expect(a.getByRole('dialog', { name: 'Concede match?', exact: true })).toBeVisible();
+		expect((await new AxeBuilder({ page: a }).analyze()).violations).toEqual([]);
 		await activate(a.getByRole('button', { name: 'Confirm concede', exact: true }));
 		await expect(a.getByRole('heading', { name: 'Match result', exact: true })).toBeVisible();
 		await expect(b.getByRole('heading', { name: 'Match result', exact: true })).toBeVisible();
+		const share = a.getByRole('button', { name: 'Share my source', exact: true });
+		await activate(share);
+		const shareDialog = a.getByRole('dialog', { name: 'Share your source?', exact: true });
+		await expect(shareDialog).toBeVisible();
+		expect((await new AxeBuilder({ page: a }).analyze()).violations).toEqual([]);
+		await activate(shareDialog.getByRole('button', { name: 'Cancel', exact: true }));
+		await expect(shareDialog).toBeHidden();
+		await expect(share).toBeFocused();
 		await activate(a.getByRole('link', { name: 'Rooms', exact: true }));
 		await expect(a).toHaveURL(/\/play$/);
 		await expectPresenceStopped(a, presence);
@@ -369,6 +480,7 @@ test('a real development account verifies email, persists its nickname, and reco
 		'Requires a real dev frontend, official Clerk testing token, and unused backend host pass.'
 	);
 	test.setTimeout(120000);
+	const pings = observeClockPings(page);
 	if (required) {
 		const email = await readFile(
 			join(process.env.MATCH_E2E_PRIVATE_DIR!, test.info().project.name, 'new-email'),
@@ -402,6 +514,9 @@ test('a real development account verifies email, persists its nickname, and reco
 	await page.getByLabel('Host pass').fill((await readFile(passFile!, 'utf8')).trim());
 	await activate(page.getByRole('button', { name: 'Redeem host pass', exact: true }));
 	await expect(page.getByRole('button', { name: 'Create room', exact: true })).toBeEnabled();
+	// Saving the nickname starts the clock; redeeming the pass refreshes the same profile.
+	await page.waitForTimeout(2000);
+	expectClockNotRestarted(pings);
 	await page.reload();
 	await expect(page.getByText('UI host', { exact: true })).toBeVisible();
 	await activate(page.getByText('Edit nickname', { exact: true }));

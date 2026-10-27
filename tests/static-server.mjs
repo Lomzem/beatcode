@@ -24,10 +24,13 @@ const headerRules = rules
 				'^' + pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$'
 			),
 			headers: Object.fromEntries(
-				lines.filter(Boolean).map((line) => {
-					const colon = line.indexOf(':');
-					return [line.slice(0, colon).trim(), line.slice(colon + 1).trim()];
-				})
+				// Later rules already replace earlier values here, so `! Header` detaches are no-ops.
+				lines
+					.filter((line) => line && !line.trim().startsWith('!'))
+					.map((line) => {
+						const colon = line.indexOf(':');
+						return [line.slice(0, colon).trim(), line.slice(colon + 1).trim()];
+					})
 			)
 		};
 	});
@@ -57,9 +60,8 @@ createServer(async (request, response) => {
 			{},
 			...headerRules.filter((rule) => rule.pattern.test(pathname)).map((rule) => rule.headers)
 		);
-		const candidates = proxy
-			? [resolve(root, '.' + proxy.to)]
-			: [path, path + '.html', resolve(path, 'index.html')];
+		const assetPath = proxy ? resolve(root, '.' + proxy.to) : path;
+		const candidates = [assetPath, assetPath + '.html', resolve(assetPath, 'index.html')];
 		let file;
 		let body;
 		for (const candidate of candidates) {
