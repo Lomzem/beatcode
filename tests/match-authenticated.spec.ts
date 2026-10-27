@@ -128,8 +128,43 @@ test('two authenticated players create, join, ready, preserve code, and concede 
 		// Axe only flags names on unnamed roles as incomplete, so require both lists empty.
 		const naming = await new AxeBuilder({ page: a }).withRules(['aria-prohibited-attr']).analyze();
 		expect([...naming.violations, ...naming.incomplete]).toEqual([]);
-		if (testInfo.project.use.viewport!.width < 640)
-			await expect(a.getByRole('group', { name: 'Code actions', exact: true })).toBeVisible();
+		if (testInfo.project.use.viewport!.width < 640) {
+			const actions = a.getByRole('group', { name: 'Code actions', exact: true });
+			await expect(actions).toBeVisible();
+			const docked = await actions.boundingBox();
+			expect(docked).not.toBeNull();
+			expect(docked!.y + docked!.height).toBeCloseTo(testInfo.project.use.viewport!.height, 0);
+			try {
+				// 320x256 is the CSS viewport equivalent of 1280x1024 at 400%;
+				// this does not exercise browser-chrome zoom or OS text scaling.
+				await a.setViewportSize({ width: 320, height: 256 });
+				for (const textSize of ['100%', '200%']) {
+					await a.evaluate((size) => {
+						document.documentElement.style.fontSize = size;
+						window.scrollTo(0, 0);
+					}, textSize);
+					await expect(async () => {
+						const bounds = await actions.boundingBox();
+						const code = await a.getByRole('tabpanel', { name: 'Code', exact: true }).boundingBox();
+						expect(bounds).not.toBeNull();
+						expect(code).not.toBeNull();
+						expect(bounds!.y).toBeGreaterThanOrEqual(code!.y + code!.height - 1);
+					}).toPass({ timeout: 5000 });
+					await editor.focus();
+					await a.keyboard.press('ControlOrMeta+Home');
+					await a.keyboard.press('Escape');
+					await a.keyboard.press('Tab');
+					await expect(editor).not.toBeFocused();
+					expect(await a.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+						true
+					);
+					expect((await new AxeBuilder({ page: a }).analyze()).violations).toEqual([]);
+				}
+			} finally {
+				await a.evaluate(() => document.documentElement.style.removeProperty('font-size'));
+				await a.setViewportSize(testInfo.project.use.viewport!);
+			}
+		}
 		// The actual Match editor owns selection readability; no mocked auth/editor state.
 		for (const appearance of [
 			'light',
