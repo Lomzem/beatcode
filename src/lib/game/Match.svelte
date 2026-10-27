@@ -764,6 +764,18 @@
 	:global(.game-page:has(.mobile-actions) :is(button, input, [tabindex])) {
 		scroll-margin-bottom: 12rem;
 	}
+	@media (max-height: 32rem) {
+		.mobile-actions {
+			position: static;
+			border-top: 0;
+		}
+		:global(.game-page:has(.mobile-actions)) {
+			padding-bottom: 0;
+		}
+		:global(.game-page:has(.mobile-actions) :is(button, input, [tabindex])) {
+			scroll-margin-bottom: 0;
+		}
+	}
 	.match-summary {
 		display: flex;
 		flex-wrap: wrap;
