@@ -109,6 +109,33 @@ static int status_number(const char **text, unsigned long long *value) {
   } while (*p >= '0' && *p <= '9');
   *text = p; *value = n; return 0;
 }
+// Linux can detach mm before publishing Z/X. PF_EXITING (stat field 9, bit 2)
+// confirms that transition. Read through the pinned PID directory, never a reused PID.
+static int process_exiting(int pid_fd) {
+  int fd = openat(pid_fd, "stat", O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+  if (fd < 0) return 0;
+  char buffer[4096]; size_t used = 0; int complete = 0;
+  while (used < sizeof buffer - 1) {
+    ssize_t n = read(fd, buffer + used, sizeof buffer - 1 - used);
+    if (n < 0) { if (errno == EINTR) continue; break; }
+    if (!n) { complete = 1; break; }
+    used += (size_t)n;
+  }
+  if (close(fd) || !complete || memchr(buffer, 0, used)) return 0;
+  buffer[used] = 0;
+  // comm is unescaped and may contain parentheses, spaces, or newlines.
+  const char *p = strrchr(buffer, ')');
+  if (!p || strlen(p) < 4 || p[1] != ' ' || p[3] != ' ') return 0;
+  p += 4; // fields 4..8 are signed process/session/terminal identifiers
+  for (int field = 4; field < 9; field++) {
+    unsigned long long ignored;
+    if (*p == '-') p++;
+    if (status_number(&p, &ignored) || *p++ != ' ') return 0;
+  }
+  unsigned long long flags;
+  if (status_number(&p, &flags) || *p != ' ') return 0;
+  return (flags & 0x00000004ULL) != 0;
+}
 // /proc lists process leaders, so threads are not charged again. Shared mappings
 // across processes deliberately count once per process, matching the aggregate AS policy.
 // Returns 1 above the limit, 0 only for a complete bounded sample, -1 if unknown.
@@ -119,14 +146,18 @@ static int aggregate_vm_exceeded(unsigned long long limit_kb) {
     errno = 0; struct dirent *e = readdir(d);
     if (!e) { if (errno) result = -1; break; }
     if (!e->d_name[0] || strspn(e->d_name, "0123456789") != strlen(e->d_name)) continue;
-    char path[4096];
-    int length = snprintf(path, sizeof path, "/proc/%s/status", e->d_name);
-    if (length < 0 || (size_t)length >= sizeof path) { result = -1; break; }
+    int pid_fd = openat(dirfd(d), e->d_name, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+    if (pid_fd < 0) {
+      if (errno == ENOENT || errno == ESRCH) continue;
+      result = -1; break;
+    }
     // Retry only this PID: restarting the whole scan lets unrelated exiting
     // helpers consume each other's retry allowance.
     for (int attempt = 0; attempt < 3; attempt++) {
-      FILE *f = fopen(path, "r");
-      if (!f) { if (errno != ENOENT && errno != ESRCH) result = -1; break; }
+      int status_fd = openat(pid_fd, "status", O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+      if (status_fd < 0) { if (errno != ENOENT && errno != ESRCH) result = -1; break; }
+      FILE *f = fdopen(status_fd, "r");
+      if (!f) { close(status_fd); result = -1; break; }
       char *line = NULL; size_t size = 0;
       int uid_seen = 0, nobody = 0, vm_seen = 0, dead = 0, threads_seen = 0, failed = 0;
       unsigned long long vm_kb = 0, threads = 0;
@@ -162,12 +193,14 @@ static int aggregate_vm_exceeded(unsigned long long limit_kb) {
       if (!feof(f) || ferror(f)) failed = 1;
       free(line);
       if (fclose(f)) { result = -1; break; }
-      // A zombie leader can still have live threads. Only a dead single-thread
-      // process is known to have released its address space when VmSize is absent.
-      if (failed || !uid_seen || (nobody && !vm_seen && !(dead && threads_seen && threads == 1))) {
+      // An exiting leader can still have live threads. Missing VmSize is safe
+      // only for a single-thread process whose exit is independently confirmed.
+      int released = !failed && uid_seen && nobody && !vm_seen && threads_seen && threads == 1 &&
+        (dead || process_exiting(pid_fd));
+      if (failed || !uid_seen || (nobody && !vm_seen && !released)) {
         // An opened status can become empty or fail with ESRCH when a helper is
         // reaped. Only confirmed absence permits skipping it. A still-visible PID
-        // may be live or reused: reopen its status and account it afresh.
+        // may be live or reused: reread the pinned process, never the replacement.
         struct stat st;
         if (fstatat(dirfd(d), e->d_name, &st, AT_SYMLINK_NOFOLLOW)) {
           if (errno == ENOENT || errno == ESRCH) break;
@@ -184,6 +217,7 @@ static int aggregate_vm_exceeded(unsigned long long limit_kb) {
       }
       break;
     }
+    if (close(pid_fd)) result = -1;
     if (result) break;
   }
   if (closedir(d)) result = -1;

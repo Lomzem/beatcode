@@ -75,6 +75,7 @@ function qualificationSdk(
 		});
 	const outputs: Record<string, string> = {
 		'cross-test-files': 'clean',
+		'short-lived-helpers': 'ok',
 		'directory-cleanup': 'clean',
 		'directory-cleanup-depth': 'done',
 		'runner-fd-forgery': 'denied',
