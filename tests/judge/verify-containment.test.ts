@@ -60,6 +60,7 @@ function qualificationSdk(
 	compilerStatus = 'mle',
 	directoryStatus = 'leftover'
 ) {
+	const created: string[] = [];
 	const metadata = JSON.parse(readFileSync('judge/image.json', 'utf8'));
 	const trailer = (status: string) =>
 		JSON.stringify({
@@ -103,6 +104,7 @@ function qualificationSdk(
 			sandboxes: {
 				async create(_app: unknown, _image: unknown, config: { tags: { attemptId: string } }) {
 					const name = config.tags.attemptId;
+					created.push(name);
 					return {
 						sandboxId: 'sb-' + 'a'.repeat(22),
 						async exec(argv: string[]) {
@@ -131,6 +133,7 @@ function qualificationSdk(
 			}
 		} as unknown as ModalClient;
 	});
+	return created;
 }
 
 function qualificationReport() {
@@ -166,6 +169,17 @@ it.each(['mle', 'lost'] as const)(
 		});
 	}
 );
+
+it('stops further qualification allocation after a failed case and preserves its report', async () => {
+	setupQualificationCli('memory-burst,std-vla');
+	const created = qualificationSdk('lost');
+	await import('../../scripts/judge/verify-containment');
+	expect(created).toEqual(['memory-burst']);
+	expect(qualificationReport()).toEqual([
+		expect.objectContaining({ name: 'memory-burst', verdict: 'sandbox_lost' })
+	]);
+	expect(process.exitCode).toBe(1);
+});
 
 it.each(['', ' ', ',', 'unknown-probe', 'memory-burst,unknown-probe', 'memory-burst,'])(
 	'rejects invalid probe selections before opening a cloud client: %j',

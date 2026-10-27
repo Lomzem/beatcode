@@ -328,6 +328,7 @@ function judgeWorkflow(
 	return Effect.gen(function* () {
 		const started = actionStartedAt;
 		let created = started,
+			createTick = 0,
 			lifetimeFrom = started,
 			unresolvedCleanup = false,
 			sandbox: Sandbox | undefined;
@@ -361,6 +362,10 @@ function judgeWorkflow(
 						return Effect.fail(new ControllerFailure('EXEC_TIMEOUT'));
 					})
 			});
+		// The create request can precede remote birth. Use its earlier timestamp and
+		// reserve the adapter's two-second termination/poll window before hard expiry.
+		const canFinishExec = (timeoutMs: number) =>
+			performance.now() - createTick + timeoutMs + 2000 <= 40000;
 		const exec = (argv: string[], input: string, cap: number, timeoutMs: number) =>
 			deadline(
 				Effect.gen(function* () {
@@ -404,6 +409,7 @@ function judgeWorkflow(
 					l = claim.limits;
 				if (Date.now() >= claim.ceilingAt) throw new Error('CEILING');
 				created = Date.now();
+				createTick = performance.now();
 				sandbox = yield* Effect.acquireRelease(
 					transport(() =>
 						provider.create(
@@ -482,6 +488,10 @@ function judgeWorkflow(
 								'a.out'
 							])
 				];
+				if (!canFinishExec(15000)) {
+					yield* finish('TLE', 'sample');
+					return;
+				}
 				const compiled = yield* exec(args('compile', 14000, -1), claim.source, 16385, 15000);
 				lowMemory ||= compiled.t.minAvailMb <= 256;
 				if (compiled.t.status !== 'ok') {
@@ -498,7 +508,7 @@ function judgeWorkflow(
 					const before = Date.now(),
 						wall = Math.min(l.timeMs, l.aggregateMs - aggregate);
 					const phase = t.kind === 'sample' ? 'sample' : 'hidden';
-					if (wall <= 0) {
+					if (wall <= 0 || !canFinishExec(wall + 3000)) {
 						yield* finish('TLE', phase, claim.kind === 'sample' ? { sampleResults } : {});
 						return;
 					}
