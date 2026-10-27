@@ -51,13 +51,10 @@ export const _run = internalAction({
 										create: (imageId, sandboxConfig) =>
 											runBackend(
 												Effect.gen(function* () {
-													const allowed = yield* step(
-														ctx.runMutation(internal.judge._beginCreate, args)
-													);
-													if (!allowed)
-														return yield* Effect.fail(new JudgeFailure('INACTIVE_LEASE'));
 													const sb = yield* judgeCall(() =>
-														modalProvider(client, appName).create(imageId, sandboxConfig)
+														modalProvider(client, appName, undefined, () =>
+															ctx.runMutation(internal.judge._beginCreate, args)
+														).create(imageId, sandboxConfig)
 													);
 													return {
 														...sb,

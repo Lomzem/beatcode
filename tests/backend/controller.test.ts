@@ -7,6 +7,8 @@ import { api, internal } from '../../convex/_generated/api';
 // The real trusted actions own SDK sessions; no sandbox or contestant code executes.
 const sdk = vi.hoisted(() => ({
 	fail: false,
+	image: undefined as undefined | (() => Promise<void>),
+	lookupFailure: undefined as undefined | 'app' | 'image',
 	opened: 0,
 	closed: 0,
 	alive: false,
@@ -69,11 +71,17 @@ vi.mock('modal', () => ({
 		}
 		apps = {
 			fromName: async () => {
-				if (sdk.fail) throw new Error('private SDK diagnostic');
+				if (sdk.fail || sdk.lookupFailure === 'app') throw new Error('private SDK diagnostic');
 				return { appId: 'fixture' };
 			}
 		};
-		images = { fromId: async () => ({}) };
+		images = {
+			fromId: async () => {
+				if (sdk.lookupFailure === 'image') throw new Error('private image diagnostic');
+				await sdk.image?.();
+				return {};
+			}
+		};
 		sandboxes = {
 			create: async (_app: unknown, _image: unknown, config: { tags: Record<string, string> }) => {
 				sdk.tags = config.tags;
@@ -97,6 +105,8 @@ afterEach(() => {
 	vi.unstubAllEnvs();
 	vi.useRealTimers();
 	sdk.fail = false;
+	sdk.lookupFailure = undefined;
+	sdk.image = undefined;
 	sdk.opened = 0;
 	sdk.closed = 0;
 	sdk.alive = false;
@@ -234,6 +244,47 @@ async function sampleGame() {
 		.createdAt;
 	return { ...game, t, sample, job, at };
 }
+it.each(['app', 'image'] as const)(
+	'releases capacity and reports judge failure when %s lookup fails before sandbox creation',
+	async (lookup) => {
+		const { t, a, b, job, matchId, roundId } = await sampleGame();
+		sdk.lookupFailure = lookup;
+		await t.action(internal.judgeController._run, job);
+		expect((await a.query(api.matches.view, { matchId })).ownSampleRuns[0].status).toBe(
+			'judge_failed'
+		);
+		await b.mutation(api.samples.run, { roundId, source: 'queued rival', clientRunId: 'rival' });
+		expect(await t.mutation(internal.judge._pump, {})).toHaveLength(1);
+	}
+);
+it('fences creation after a slow image lookup outlives its lease without holding capacity', async () => {
+	const { t, a, b, job, matchId, roundId, at } = await sampleGame();
+	const lookingUp = deferred<void>();
+	const entered = deferred<void>();
+	sdk.image = () => {
+		entered.resolve();
+		return lookingUp.promise;
+	};
+	let allocated = false;
+	sdk.create = async () => {
+		allocated = true;
+	};
+	const running = t.action(internal.judgeController._run, job);
+	await entered.promise;
+	try {
+		vi.setSystemTime(at + 45000);
+		await t.mutation(internal.judge._watchdog, job);
+		expect((await a.query(api.matches.view, { matchId })).ownSampleRuns[0].status).toBe(
+			'judge_failed'
+		);
+		await b.mutation(api.samples.run, { roundId, source: 'queued rival', clientRunId: 'rival' });
+		expect(await t.mutation(internal.judge._pump, {})).toHaveLength(1);
+	} finally {
+		lookingUp.resolve();
+		await running;
+	}
+	expect(allocated).toBe(false);
+});
 it('publishes normal compiler feedback only after the controller confirms sandbox termination', async () => {
 	const { t, a, b, job, matchId, roundId } = await sampleGame();
 	const terminating = deferred<void>();
@@ -342,7 +393,7 @@ it('recovers an unacknowledged create through the independent tagged SDK reaper'
 	const creating = deferred<unknown>();
 	const entered = deferred<void>();
 	sdk.bornBeforeResponse = true;
-	sdk.listed = true;
+	sdk.listed = false;
 	sdk.create = () => {
 		entered.resolve();
 		return creating.promise;
@@ -358,6 +409,11 @@ it('recovers an unacknowledged create through the independent tagged SDK reaper'
 	await t.mutation(internal.judge._watchdog, job);
 	await b.mutation(api.samples.run, { roundId, source: 'rival', clientRunId: 'rival' });
 	expect(await t.mutation(internal.judge._pump, {})).toEqual([]);
+	// An empty discovery list is not proof that an in-flight create failed.
+	await t.action(internal.judgeController._reap, {});
+	expect((await a.query(api.matches.view, { matchId })).ownSampleRuns[0].status).toBe('pending');
+	expect(await t.mutation(internal.judge._pump, {})).toEqual([]);
+	sdk.listed = true;
 	await t.action(internal.judgeController._reap, {});
 	expect((await a.query(api.matches.view, { matchId })).ownSampleRuns[0].status).toBe(
 		'judge_failed'
