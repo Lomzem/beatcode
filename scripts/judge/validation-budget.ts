@@ -53,9 +53,9 @@ export function reserve(label: string, seconds = 40, builder = false) {
 				(builder
 					? (8 * 0.1419) / 3600 + (32 * 0.024) / 3600
 					: 0.1419 / 3600 + (0.75 * 0.024) / 3600);
-			// Approved exit-race qualification adds 900s plus one 40s replacement inspection.
+			// Approved repair allocations retain every charge, including failed qualification.
 			// The existing $1 validation ceiling and $0 net-spend policy remain in force.
-			if (reserved + seconds > 6940 || dollars + creditEstimate > 1)
+			if (reserved + seconds > 7660 || dollars + creditEstimate > 1)
 				return yield* new OperatorError({ message: 'VALIDATION_BUDGET' });
 			yield* recordEffect({
 				event: 'reserved',
