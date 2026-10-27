@@ -11,7 +11,10 @@ const modules = {
 	'../../convex/bootstrap.ts': () => import('./convex/bootstrap'),
 	'../../convex/judgeController.ts': () => import('./convex/judgeController')
 };
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+	vi.unstubAllEnvs();
+	vi.useRealTimers();
+});
 it.each([
 	undefined,
 	'https://descriptive-scorpion-877.convex.cloud',
@@ -73,4 +76,32 @@ it('fixture reset preserves private recovery and refuses removing unresolved int
 		accountId: intent.accountId
 	});
 	expect(await t.query(makeFunctionReference<'query'>('recovery:list'), {})).toEqual([]);
+});
+
+it('advances cleanup in bounded pages through historical scheduler receipts', async () => {
+	vi.useFakeTimers();
+	vi.stubEnv('CONVEX_CLOUD_URL', CI_BACKEND_URL);
+	const t = convexTest({ schema, modules, transactionLimits: { documentsRead: 4096 } });
+	const task = makeFunctionReference<'mutation'>('rooms:_reap');
+	// Genuine cancelled scheduler receipts, created in bounded fixture transactions.
+	for (let batch = 0; batch < 42; batch++) {
+		await t.run(async (ctx) => {
+			for (let i = 0; i < 100; i++) {
+				const id = await ctx.scheduler.runAfter(60000, task, {});
+				await ctx.scheduler.cancel(id);
+			}
+		});
+	}
+	const pending = await t.run((ctx) => ctx.scheduler.runAfter(60000, task, {}));
+	const firstPage = await t.mutation(makeFunctionReference<'mutation'>('bootstrap:cancelPage'), {});
+	// One bounded page must not scan thousands of old receipts to reach later work.
+	expect(await t.run((ctx) => ctx.db.system.get(pending))).toMatchObject({
+		state: { kind: 'pending' }
+	});
+	expect(firstPage).toMatchObject({ isDone: false });
+	await t.action(makeFunctionReference<'action'>('bootstrap:reset'), {});
+	// The platform receipt confirms cleanup, even when pending work follows old history.
+	expect(await t.run((ctx) => ctx.db.system.get(pending))).toMatchObject({
+		state: { kind: 'canceled' }
+	});
 });

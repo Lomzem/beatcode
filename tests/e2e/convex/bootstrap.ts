@@ -27,19 +27,20 @@ export const clearPage = internalMutation({
 		)
 });
 export const cancelPage = internalMutation({
-	args: {},
-	handler: (ctx) =>
+	args: { cursor: v.optional(v.string()) },
+	handler: (ctx, { cursor }) =>
 		runBackend(
 			Effect.gen(function* () {
 				yield* syncStep(assertCiDeployment);
 				const jobs = yield* step(
 					ctx.db.system
 						.query('_scheduled_functions')
-						.filter((q) => q.eq(q.field('state.kind'), 'pending'))
-						.take(100)
+						.paginate({ cursor: cursor ?? null, numItems: 100 })
 				);
-				for (const job of jobs) yield* step(ctx.scheduler.cancel(job._id));
-				return jobs.length;
+				// Bound scanned history, not only the number of matching pending jobs.
+				for (const job of jobs.page)
+					if (job.state.kind === 'pending') yield* step(ctx.scheduler.cancel(job._id));
+				return { isDone: jobs.isDone, continueCursor: jobs.continueCursor };
 			})
 		)
 });
@@ -49,11 +50,16 @@ export const reset = internalAction({
 		runBackend(
 			Effect.gen(function* () {
 				yield* syncStep(assertCiDeployment);
-				const cancel = makeFunctionReference<'mutation', Record<string, never>, number>(
-					'bootstrap:cancelPage'
-				);
-				while (yield* step(ctx.runMutation(cancel, {}))) {
-					/* Drain scheduled fixture work. */
+				const cancel = makeFunctionReference<
+					'mutation',
+					{ cursor?: string },
+					{ isDone: boolean; continueCursor: string }
+				>('bootstrap:cancelPage');
+				let cursor: string | undefined;
+				while (true) {
+					const page = yield* step(ctx.runMutation(cancel, cursor === undefined ? {} : { cursor }));
+					if (page.isDone) break;
+					cursor = page.continueCursor;
 				}
 				const clear = makeFunctionReference<'mutation', { table: string }, number>(
 					'bootstrap:clearPage'
