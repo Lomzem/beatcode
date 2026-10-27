@@ -1,0 +1,970 @@
+{
+	"format": "beatcode-judge-qualification/1",
+	"at": "2026-10-26T20:53:54.572Z",
+	"reviewedCommitWithMatchingSource": "b30463a0b6029dcf91e5c7adba86e70fd7622215",
+	"executionPolicy": "staged-input-reference-10s-aggregate-vm-v3",
+	"releaseSourceSha256": "e9e25a01540832b1a9354f287cccd8cc318ca2866a3717f5fa54977ba5c781f4",
+	"image": {
+		"modalImageId": "im-b8GvXnrwb694TgiEw5gDyu",
+		"baseDigest": "sha256:eb5e64286ad47187b32bda75c6b6916166ecb41da56559b8b09e0001748d2cce",
+		"gccVersion": "15.3.0",
+		"runtime": "gvisor",
+		"cpu": 1,
+		"runnerSha256": "53faae79e7d56f7f0d298ab1f1df4a4f5b7a81e238d5046a74680960154302ae",
+		"runnerSourceSha256": "0986214229d6a97da231800b0ab96b971e8d3bbe8d25a0410979ddcc1fb05c01"
+	},
+	"cases": [
+		{
+			"name": "cross-test-files",
+			"verdict": "AC",
+			"expected": "AC",
+			"trailerStatuses": [
+				"ok",
+				"ok",
+				"ok",
+				"ok"
+			],
+			"runnerCounters": [
+				{
+					"minAvailMb": 751,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 63628,
+					"wallMs": 355,
+					"cpuMs": 380
+				},
+				{
+					"minAvailMb": 766,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 5724,
+					"wallMs": 26,
+					"cpuMs": 20
+				},
+				{
+					"minAvailMb": 767,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 7512,
+					"wallMs": 7,
+					"cpuMs": 10
+				},
+				{
+					"minAvailMb": 766,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 6760,
+					"wallMs": 44,
+					"cpuMs": 40
+				}
+			],
+			"counters": {
+				"testWallMs": [
+					26,
+					7,
+					44
+				],
+				"execObservedMs": [
+					568,
+					554,
+					1019
+				]
+			},
+			"sandboxSeconds": 7.886,
+			"actionSeconds": 7.887
+		},
+		{
+			"name": "directory-cleanup",
+			"verdict": "AC",
+			"expected": "AC",
+			"trailerStatuses": [
+				"ok",
+				"ok",
+				"ok"
+			],
+			"runnerCounters": [
+				{
+					"minAvailMb": 751,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 60628,
+					"wallMs": 213,
+					"cpuMs": 220
+				},
+				{
+					"minAvailMb": 767,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 7092,
+					"wallMs": 10,
+					"cpuMs": 10
+				},
+				{
+					"minAvailMb": 767,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 6264,
+					"wallMs": 4,
+					"cpuMs": 10
+				}
+			],
+			"counters": {
+				"testWallMs": [
+					10,
+					4
+				],
+				"execObservedMs": [
+					618,
+					916
+				]
+			},
+			"sandboxSeconds": 5.827,
+			"actionSeconds": 5.827
+		},
+		{
+			"name": "directory-cleanup-depth",
+			"verdict": "RE",
+			"expected": "RE",
+			"trailerStatuses": [
+				"ok",
+				"leftover"
+			],
+			"runnerCounters": [
+				{
+					"minAvailMb": 751,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 60852,
+					"wallMs": 310,
+					"cpuMs": 300
+				},
+				{
+					"minAvailMb": 766,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 7052,
+					"wallMs": 16,
+					"cpuMs": 20
+				}
+			],
+			"counters": {
+				"testWallMs": [
+					16
+				],
+				"execObservedMs": [
+					508
+				]
+			},
+			"sandboxSeconds": 5.524,
+			"actionSeconds": 5.524
+		},
+		{
+			"name": "runner-fd-forgery",
+			"verdict": "AC",
+			"expected": "AC",
+			"trailerStatuses": [
+				"ok",
+				"ok"
+			],
+			"runnerCounters": [
+				{
+					"minAvailMb": 751,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 60468,
+					"wallMs": 453,
+					"cpuMs": 460
+				},
+				{
+					"minAvailMb": 766,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 6464,
+					"wallMs": 14,
+					"cpuMs": 10
+				}
+			],
+			"counters": {
+				"testWallMs": [
+					14
+				],
+				"execObservedMs": [
+					498
+				]
+			},
+			"sandboxSeconds": 5.916,
+			"actionSeconds": 5.916
+		},
+		{
+			"name": "memory-backed-mounts",
+			"verdict": "AC",
+			"expected": "AC",
+			"trailerStatuses": [
+				"ok",
+				"ok"
+			],
+			"runnerCounters": [
+				{
+					"minAvailMb": 751,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 61156,
+					"wallMs": 429,
+					"cpuMs": 450
+				},
+				{
+					"minAvailMb": 766,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 6536,
+					"wallMs": 15,
+					"cpuMs": 10
+				}
+			],
+			"counters": {
+				"testWallMs": [
+					15
+				],
+				"execObservedMs": [
+					914
+				]
+			},
+			"sandboxSeconds": 5.133,
+			"actionSeconds": 5.133
+		},
+		{
+			"name": "non-dumpable-daemon-sweep",
+			"verdict": "AC",
+			"expected": "AC",
+			"trailerStatuses": [
+				"ok",
+				"ok",
+				"ok",
+				"ok"
+			],
+			"runnerCounters": [
+				{
+					"minAvailMb": 751,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 60524,
+					"wallMs": 2095,
+					"cpuMs": 2070
+				},
+				{
+					"minAvailMb": 766,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 6932,
+					"wallMs": 16,
+					"cpuMs": 10
+				},
+				{
+					"minAvailMb": 767,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 2,
+					"leftover": 0,
+					"maxrssKb": 6312,
+					"wallMs": 6,
+					"cpuMs": 0
+				},
+				{
+					"minAvailMb": 767,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 6908,
+					"wallMs": 5,
+					"cpuMs": 10
+				}
+			],
+			"counters": {
+				"testWallMs": [
+					16,
+					6,
+					5
+				],
+				"execObservedMs": [
+					588,
+					635,
+					922
+				]
+			},
+			"sandboxSeconds": 7.79,
+			"actionSeconds": 7.79
+		},
+		{
+			"name": "output-flood",
+			"verdict": "OLE",
+			"expected": "OLE",
+			"trailerStatuses": [
+				"ok",
+				"ole"
+			],
+			"runnerCounters": [
+				{
+					"minAvailMb": 751,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 60000,
+					"wallMs": 361,
+					"cpuMs": 400
+				},
+				{
+					"minAvailMb": 766,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 6120,
+					"wallMs": 18,
+					"cpuMs": 10
+				}
+			],
+			"counters": {
+				"testWallMs": [
+					18
+				],
+				"execObservedMs": [
+					5526
+				]
+			},
+			"sandboxSeconds": 9.408,
+			"actionSeconds": 9.408
+		},
+		{
+			"name": "many-file-disk-growth",
+			"verdict": "RE",
+			"expected": "RE",
+			"trailerStatuses": [
+				"ok",
+				"disk"
+			],
+			"runnerCounters": [
+				{
+					"minAvailMb": 750,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 61080,
+					"wallMs": 233,
+					"cpuMs": 210
+				},
+				{
+					"minAvailMb": 765,
+					"diskPeakMb": 258,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 7416,
+					"wallMs": 60,
+					"cpuMs": 60
+				}
+			],
+			"counters": {
+				"testWallMs": [
+					60
+				],
+				"execObservedMs": [
+					919
+				]
+			},
+			"sandboxSeconds": 5.213,
+			"actionSeconds": 5.213
+		},
+		{
+			"name": "per-attempt-disk-baseline",
+			"verdict": "RE",
+			"expected": "RE",
+			"trailerStatuses": [
+				"ok",
+				"disk"
+			],
+			"runnerCounters": [
+				{
+					"minAvailMb": 751,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 60840,
+					"wallMs": 2416,
+					"cpuMs": 2290
+				},
+				{
+					"minAvailMb": 765,
+					"diskPeakMb": 257,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 7712,
+					"wallMs": 230,
+					"cpuMs": 220
+				}
+			],
+			"counters": {
+				"testWallMs": [
+					230
+				],
+				"execObservedMs": [
+					1744
+				]
+			},
+			"sandboxSeconds": 8.599,
+			"actionSeconds": 8.599
+		},
+		{
+			"name": "compiler-memory-blowup",
+			"verdict": "CE",
+			"expected": "CE",
+			"trailerStatuses": [
+				"mle"
+			],
+			"runnerCounters": [
+				{
+					"minAvailMb": 127,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 5524,
+					"wallMs": 4223,
+					"cpuMs": 20
+				}
+			],
+			"counters": {
+				"testWallMs": [],
+				"execObservedMs": []
+			},
+			"sandboxSeconds": 7.274,
+			"actionSeconds": 7.274
+		},
+		{
+			"name": "aggregate-address-space",
+			"verdict": "MLE",
+			"expected": "MLE",
+			"trailerStatuses": [
+				"ok",
+				"mle"
+			],
+			"runnerCounters": [
+				{
+					"minAvailMb": 751,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 60820,
+					"wallMs": 618,
+					"cpuMs": 600
+				},
+				{
+					"minAvailMb": 767,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 5920,
+					"wallMs": 14,
+					"cpuMs": 20
+				}
+			],
+			"counters": {
+				"testWallMs": [
+					14
+				],
+				"execObservedMs": [
+					1124
+				]
+			},
+			"sandboxSeconds": 7.162,
+			"actionSeconds": 7.162
+		},
+		{
+			"name": "memory-burst",
+			"verdict": "MLE",
+			"expected": "MLE",
+			"trailerStatuses": [
+				"ok",
+				"mle"
+			],
+			"runnerCounters": [
+				{
+					"minAvailMb": 751,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 61476,
+					"wallMs": 473,
+					"cpuMs": 380
+				},
+				{
+					"minAvailMb": 766,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 7452,
+					"wallMs": 59,
+					"cpuMs": 20
+				}
+			],
+			"counters": {
+				"testWallMs": [
+					59
+				],
+				"execObservedMs": [
+					613
+				]
+			},
+			"sandboxSeconds": 5.534,
+			"actionSeconds": 5.534
+		},
+		{
+			"name": "std-vla",
+			"verdict": "AC",
+			"expected": "AC",
+			"trailerStatuses": [
+				"ok",
+				"ok"
+			],
+			"runnerCounters": [
+				{
+					"minAvailMb": 750,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 60272,
+					"wallMs": 427,
+					"cpuMs": 380
+				},
+				{
+					"minAvailMb": 765,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 5808,
+					"wallMs": 48,
+					"cpuMs": 50
+				}
+			],
+			"counters": {
+				"testWallMs": [
+					48
+				],
+				"execObservedMs": [
+					819
+				]
+			},
+			"sandboxSeconds": 5.22,
+			"actionSeconds": 5.22
+		},
+		{
+			"name": "strict-vla",
+			"verdict": "CE",
+			"expected": "CE",
+			"trailerStatuses": [
+				"re"
+			],
+			"runnerCounters": [
+				{
+					"minAvailMb": 762,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 58916,
+					"wallMs": 219,
+					"cpuMs": 230
+				}
+			],
+			"counters": {
+				"testWallMs": [],
+				"execObservedMs": []
+			},
+			"sandboxSeconds": 4.293,
+			"actionSeconds": 4.294
+		},
+		{
+			"name": "typical-bits-solution",
+			"verdict": "AC",
+			"expected": "AC",
+			"trailerStatuses": [
+				"ok",
+				"ok",
+				"ok",
+				"ok",
+				"ok",
+				"ok",
+				"ok",
+				"ok",
+				"ok",
+				"ok",
+				"ok",
+				"ok"
+			],
+			"runnerCounters": [
+				{
+					"minAvailMb": 534,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 291076,
+					"wallMs": 1591,
+					"cpuMs": 1560
+				},
+				{
+					"minAvailMb": 767,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 6492,
+					"wallMs": 5,
+					"cpuMs": 10
+				},
+				{
+					"minAvailMb": 767,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 6464,
+					"wallMs": 4,
+					"cpuMs": 0
+				},
+				{
+					"minAvailMb": 767,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 7072,
+					"wallMs": 4,
+					"cpuMs": 10
+				},
+				{
+					"minAvailMb": 767,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 6044,
+					"wallMs": 4,
+					"cpuMs": 0
+				},
+				{
+					"minAvailMb": 767,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 7196,
+					"wallMs": 5,
+					"cpuMs": 10
+				},
+				{
+					"minAvailMb": 767,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 5804,
+					"wallMs": 3,
+					"cpuMs": 0
+				},
+				{
+					"minAvailMb": 767,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 7632,
+					"wallMs": 3,
+					"cpuMs": 0
+				},
+				{
+					"minAvailMb": 767,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 5740,
+					"wallMs": 4,
+					"cpuMs": 0
+				},
+				{
+					"minAvailMb": 767,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 7688,
+					"wallMs": 3,
+					"cpuMs": 10
+				},
+				{
+					"minAvailMb": 767,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 7164,
+					"wallMs": 4,
+					"cpuMs": 0
+				},
+				{
+					"minAvailMb": 767,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 6248,
+					"wallMs": 3,
+					"cpuMs": 0
+				}
+			],
+			"counters": {
+				"testWallMs": [
+					5,
+					4,
+					4,
+					4,
+					5,
+					3,
+					3,
+					4,
+					3,
+					4,
+					3
+				],
+				"execObservedMs": [
+					876,
+					916,
+					928,
+					919,
+					815,
+					1025,
+					735,
+					801,
+					926,
+					917,
+					926
+				]
+			},
+			"sandboxSeconds": 16.285,
+			"actionSeconds": 16.285
+		},
+		{
+			"name": "scoped-network",
+			"verdict": "AC",
+			"expected": "AC",
+			"trailerStatuses": [
+				"ok",
+				"ok"
+			],
+			"runnerCounters": [
+				{
+					"minAvailMb": 751,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 60856,
+					"wallMs": 310,
+					"cpuMs": 290
+				},
+				{
+					"minAvailMb": 766,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 6860,
+					"wallMs": 16,
+					"cpuMs": 10
+				}
+			],
+			"counters": {
+				"testWallMs": [
+					16
+				],
+				"execObservedMs": [
+					920
+				]
+			},
+			"sandboxSeconds": 5.223,
+			"actionSeconds": 5.223
+		},
+		{
+			"name": "fork-bomb",
+			"verdict": "MLE",
+			"expected": "TLE|MLE",
+			"trailerStatuses": [
+				"ok",
+				"mle"
+			],
+			"runnerCounters": [
+				{
+					"minAvailMb": 751,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 1,
+					"leftover": 0,
+					"maxrssKb": 61124,
+					"wallMs": 538,
+					"cpuMs": 500
+				},
+				{
+					"minAvailMb": 766,
+					"diskPeakMb": 0,
+					"diskBaseMb": 0,
+					"sweeps": 2,
+					"leftover": 0,
+					"maxrssKb": 7268,
+					"wallMs": 114,
+					"cpuMs": 30
+				}
+			],
+			"counters": {
+				"testWallMs": [
+					114
+				],
+				"execObservedMs": [
+					912
+				]
+			},
+			"sandboxSeconds": 5.78,
+			"actionSeconds": 5.78
+		}
+	],
+	"additionalMemoryChecks": [
+		{
+			"verdict": "MLE",
+			"observation": "unrecognized",
+			"metrics": {
+				"testWallMs": [
+					162
+				],
+				"execObservedMs": [
+					1235
+				]
+			},
+			"executions": [
+				{
+					"mode": "preflight",
+					"exitCode": 0
+				},
+				{
+					"mode": "compile",
+					"exitCode": 0
+				},
+				{
+					"mode": "preflight",
+					"exitCode": 0
+				}
+			],
+			"beforeTermination": {
+				"exitCode": null
+			}
+		},
+		{
+			"verdict": "MLE",
+			"observation": "unrecognized",
+			"metrics": {
+				"testWallMs": [
+					22
+				],
+				"execObservedMs": [
+					919
+				]
+			},
+			"executions": [
+				{
+					"mode": "preflight",
+					"exitCode": 0
+				},
+				{
+					"mode": "compile",
+					"exitCode": 0
+				},
+				{
+					"mode": "preflight",
+					"exitCode": 0
+				}
+			],
+			"beforeTermination": {
+				"exitCode": null
+			}
+		}
+	],
+	"cleanup": {
+		"allFinished": true,
+		"knownIds": 135,
+		"reservedSeconds": 6000,
+		"creditEstimate": 0.557049999999998
+	},
+	"priorQualificationFailuresRetained": {
+		"initial": [
+			"cross-test-files: compatibility denied with EPERM, fixture incorrectly required a signal",
+			"memory-burst: runner lost",
+			"typical-bits-solution: identity preflight failed"
+		],
+		"runtimeGuard512": [
+			"memory-burst: runner lost in a later complete run"
+		],
+		"firstAggregateImage": [
+			"compiler-memory-blowup: identity transport timed out at five seconds"
+		]
+	},
+	"limits": {
+		"cumulativeValidationSeconds": 6000,
+		"estimatedValidationDollars": 1,
+		"noAutomaticRetry": true
+	},
+	"scope": [
+		"Public adversarial fixtures only; no private problem payload or reference source.",
+		"Image identity and containment evidence; not production calibration or full release acceptance.",
+		"Earlier failed observations and all cumulative charges remain retained.",
+		"G6 and historical spread failures remain failed."
+	]
+}

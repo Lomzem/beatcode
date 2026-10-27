@@ -1,5 +1,8 @@
-// Measurement semantics are unchanged across the two fixed deployment campaigns.
-export const EXECUTION_POLICY = 'staged-input-reference-10s-v1';
+// Runtime caps aggregate contestant VmSize at M + 80 MiB and preserves a 512 MiB reserve.
+// Compile disables the aggregate VmSize cap and retains its 128 MiB guard.
+// Whole-exec dispatch must fit before40s from create request, with2s for cleanup.
+// Prior-policy evidence requires fresh environment and package-version receipts.
+export const EXECUTION_POLICY = 'staged-input-reference-10s-attempt-budget-v4';
 
 /** Fixed campaign policy. Deployment identity comes from Convex's built-in cloud URL. */
 export const DEV_CALIBRATION = {
