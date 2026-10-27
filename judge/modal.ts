@@ -40,7 +40,8 @@ const modalOperation = <A>(operation: () => PromiseLike<A>) =>
 export function modalProvider(
 	client: ModalClient,
 	appName: string,
-	expectedAppId?: string
+	expectedAppId?: string,
+	authorizeCreate?: () => Promise<boolean>
 ): SandboxProvider {
 	return {
 		create: (imageId, config) =>
@@ -50,6 +51,10 @@ export function modalProvider(
 					if (expectedAppId && app.appId !== expectedAppId)
 						return yield* Effect.fail(new Error('CALIBRATION_APP_BINDING'));
 					const image = yield* modalOperation(() => client.images.fromId(imageId));
+					// Lookups cannot allocate a sandbox. Fence only the resource-creating call,
+					// after them, so lookup failures never imply unknown create ownership.
+					if (authorizeCreate && !(yield* modalOperation(authorizeCreate)))
+						return yield* Effect.fail(new Error('INACTIVE_LEASE'));
 					// Ownership transfers to the controller's sandbox scope when this resolves.
 					const sb = yield* modalOperation(() =>
 						client.sandboxes.create(app, image, {
