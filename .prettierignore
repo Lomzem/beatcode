@@ -1,0 +1,14 @@
+node_modules
+.svelte-kit
+build
+playwright-report
+test-results
+bun.lock
+.scratch
+AGENTS.md
+GLOSSARY.md
+docs
+README.md
+
+# Convex-generated API bindings are replaced by codegen.
+convex/_generated

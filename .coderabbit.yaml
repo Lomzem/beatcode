@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-US
+reviews:
+  profile: chill
+  request_changes_workflow: true
+  allow_author_approval: false
+  poem: false
+  review_status: true
+  fail_commit_status: true
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    drafts: false
+  path_instructions:
+    - path: 'src/**'
+      instructions: >-
+        Apply docs/agents/ui.md. Accessibility, responsive behavior from 320px,
+        keyboard/focus, contrast and assistive technology take priority.
+        UI copy must be direct and useful; omit corny slogans and filler subtitles.
+    - path: 'convex/**'
+      instructions: >-
+        Check authorization on every public boundary, immutable submission snapshots,
+        server admission ordering, hidden-test secrecy and trusted result leases.
+        A contestant-induced sandbox failure must not void a losing round.
+    - path: 'judge/**'
+      instructions: >-
+        Check isolation, resource limits, credential exclusion, streaming output caps,
+        cross-test cleanup and termination. Expected answers stay outside sandboxes.
