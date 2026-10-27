@@ -1,4 +1,31 @@
-// Public adversarial fixtures. Compile and execute ONLY inside Modal through verify-containment.ts.
+// Public fixtures for the trusted runner boundary, locally in containers or in Modal.
+// Ordinary fork/wait helpers race /proc sampling while staying well below the AS cap.
+export const shortLivedHelpersSource = `#include <sys/prctl.h>
+#include <sys/wait.h>
+#include <unistd.h>
+int main(void) {
+  for (int worker = 0; worker < 4; worker++) {
+    pid_t pid = fork(); if (pid < 0) return 9;
+    if (!pid) {
+      for (int i = 0; i < 128; i++) {
+        pid_t helper = fork(); if (helper < 0) _exit(9);
+        if (!helper) {
+          if (prctl(PR_SET_NAME, "helper) (\\n", 0, 0, 0)) _exit(9);
+          usleep(500); _exit(0);
+        }
+        int status;
+        if (waitpid(helper, &status, 0) != helper || !WIFEXITED(status) || WEXITSTATUS(status)) _exit(9);
+      }
+      _exit(0);
+    }
+  }
+  for (int worker = 0; worker < 4; worker++) {
+    int status;
+    if (wait(&status) < 0 || !WIFEXITED(status) || WEXITSTATUS(status)) return 9;
+  }
+  return write(1, "ok\\n", 3) == 3 ? 0 : 9;
+}
+`;
 export const containmentCases: {
 	name: string;
 	expected: string;
@@ -43,6 +70,15 @@ FILE*f=fopen("/tmp/beatcode-state","w");if(f){fputs("x",f);fclose(f);}f=fopen("s
 			{ input: '1', output: 'clean' },
 			{ input: '2', output: 'clean' },
 			{ input: '3', output: 'clean' }
+		]
+	},
+	{
+		name: 'short-lived-helpers',
+		expected: 'AC',
+		source: shortLivedHelpersSource,
+		samples: [
+			{ input: '1', output: 'ok' },
+			{ input: '2', output: 'ok' }
 		]
 	},
 	{
