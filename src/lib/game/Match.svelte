@@ -56,9 +56,15 @@
 	const effects = $derived(match?.effects.filter((e) => e.endsAt > now) ?? []);
 	const incoming = $derived(effects.filter((e) => e.targetId === match?.playerId));
 	const challenge = $derived(incoming.find((e) => e.cardId === 'brain_teaser'));
-	const diagnostics = $derived(
-		match?.ownSubmissions.at(-1)?.diagnostics ?? match?.ownSampleRuns.at(-1)?.diagnostics ?? ''
-	);
+	const diagnostics = $derived.by(() => {
+		const submission = match?.ownSubmissions.at(-1);
+		const sample = match?.ownSampleRuns.at(-1);
+		return (
+			(submission && (!sample || submission.receivedAt >= sample.createdAt)
+				? submission.diagnostics
+				: sample?.diagnostics) ?? ''
+		);
+	});
 	const blocked = $derived(!!game.state.pending || !game.state.connected);
 	const power = $derived(
 		own && round
