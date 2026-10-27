@@ -826,6 +826,64 @@ it('enforces the production 150-job cap through charged reservations without fab
 	});
 });
 
+it.each(['draft', 'active', 'calibrating', 'rejected'] as const)(
+	'rejects immutable payload drift and accepts identical re-uploads for %s version replay',
+	async (status) => {
+		const { t, job } = await fixture();
+		const p = (await t.run((ctx) => ctx.db.get(job.problemVersionId)))!;
+		const args: FunctionArgs<typeof internal.problems._createVersion> = {
+			slug: 'fixture',
+			title: 'Fixture',
+			difficulty: 1,
+			version: p.version,
+			statementMd: p.statementMd,
+			samples: p.samples,
+			limits: p.limits,
+			testsStorageId: p.testsStorageId,
+			testsSha256: p.testsSha256,
+			packageSha256: p.packageSha256,
+			judgeEnvId: p.judgeEnvId,
+			referenceSolutions: p.referenceSolutions!
+		};
+		// Persisted lifecycle fixtures only, not calibration measurements or receipts.
+		await t.run((ctx) =>
+			ctx.db.patch(job.problemVersionId, {
+				status,
+				limits: { ...p.limits, timeMs: status === 'draft' ? 3000 : 700 }
+			})
+		);
+		const drift = [
+			{ statementMd: 'Changed statement' },
+			{ samples: [{ input: '2', output: '1' }] },
+			{ samples: [{ input: '1', output: '2' }] },
+			{ samples: [...args.samples, { input: '2', output: '2' }] },
+			...(['accepted', 'timeLimitExceeded', 'wrongAnswer', 'validator'] as const).map((role) => ({
+				referenceSolutions: {
+					...args.referenceSolutions,
+					[role]: role === 'validator' ? 'changed validator' : ['changed reference']
+				}
+			})),
+			{ limits: { ...args.limits, memoryMiB: 512 } },
+			{ limits: { ...args.limits, outputKiB: 2 } },
+			{ limits: { ...args.limits, aggregateMs: 10000 } },
+			...(status === 'draft' ? [{ limits: { ...args.limits, timeMs: 2000 } }] : [])
+		];
+		for (const changed of drift)
+			await expect(
+				t.mutation(internal.problems._createVersion, { ...args, ...changed })
+			).rejects.toThrow('BAD_INPUT');
+		const uploadedAgain = await t.run(async (ctx) =>
+			ctx.storage.store((await ctx.storage.get(p.testsStorageId))!)
+		);
+		expect(
+			await t.mutation(internal.problems._createVersion, {
+				...args,
+				testsStorageId: uploadedAgain
+			})
+		).toEqual({ problemVersionId: job.problemVersionId });
+	}
+);
+
 it.each([
 	'missing',
 	'tests',

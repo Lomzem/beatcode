@@ -13,7 +13,14 @@ const match = $state({
 	round: { roundId: 'public-round', index: 1, status: 'active', startsAt: 0, endsAt: 600000 },
 	effects: [],
 	ownSubmissions: [] as { receivedAt: number; diagnostics?: string; seq: number; status: string }[],
-	ownSampleRuns: [] as { createdAt: number; diagnostics?: string | null; status: string }[],
+	ownSampleRuns: [] as {
+		createdAt: number;
+		diagnostics?: string | null;
+		status: string;
+		verdict?: string | null;
+		sampleRunId?: string;
+		results?: { verdict: string; output: string }[];
+	}[],
 	rounds: [],
 	opponentPending: false
 });

@@ -130,6 +130,7 @@ export default defineSchema({
 		status: v.union(v.literal('pending'), v.literal('done'), v.literal('judge_failed')),
 		clientRunId: v.string(),
 		snapshot,
+		verdict: v.optional(verdict),
 		results: v.optional(v.array(v.object({ verdict, output: v.string() }))),
 		diagnostics: v.optional(v.string()),
 		purgedAt: v.optional(v.number())

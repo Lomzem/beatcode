@@ -211,7 +211,7 @@ test('two authenticated players create, join, ready, preserve code, and concede 
 		await expect(editor).not.toBeFocused();
 		await activate(a.getByRole('button', { name: 'Run samples', exact: true }));
 		await panel(a, 'Results');
-		await expect(a.getByText('Sample run done', { exact: true })).toBeVisible();
+		await expect(a.getByText('Sample run AC', { exact: true })).toBeVisible();
 		await expect(a.getByText('Sample 1: AC', { exact: true })).toBeVisible();
 		expect((await new AxeBuilder({ page: a }).analyze()).violations).toEqual([]);
 		// Each chosen effect is sent and received through the real card UI.

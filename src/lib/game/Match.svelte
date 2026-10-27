@@ -647,7 +647,11 @@
 					</details>{/if}{/each}
 			<h3>Your sample runs</h3>
 			{#each match.ownSampleRuns as run (run.sampleRunId)}<div>
-					<p>{run.status === 'pending' ? 'Sample run pending' : 'Sample run ' + run.status}</p>
+					<p>
+						{run.status === 'pending'
+							? 'Sample run pending'
+							: 'Sample run ' + (run.verdict ?? run.status)}
+					</p>
 					{#each run.results ?? [] as result, index (index)}<p>
 							Sample {index + 1}: {result.verdict}
 						</p>
