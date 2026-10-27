@@ -352,6 +352,7 @@ export const _complete = internalMutation({
 				if (a.sampleRunId)
 					yield* step(
 						ctx.db.patch(a.sampleRunId, {
+							verdict: result.verdict,
 							diagnostics,
 							results: result.sampleResults?.map((r) => ({
 								verdict: r.verdict,
