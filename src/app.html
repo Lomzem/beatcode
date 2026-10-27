@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="theme-color" content="#18223b" />
+		<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+		<link
+			rel="preload"
+			href="/fonts/BarlowCondensed-SemiBold.ttf"
+			as="font"
+			type="font/ttf"
+			crossorigin="anonymous"
+		/>
+		<link
+			rel="preload"
+			href="/fonts/AtkinsonHyperlegible-Regular.ttf"
+			as="font"
+			type="font/ttf"
+			crossorigin="anonymous"
+		/>
+		<link
+			rel="preload"
+			href="/fonts/AtkinsonHyperlegible-Bold.ttf"
+			as="font"
+			type="font/ttf"
+			crossorigin="anonymous"
+		/>
+		<script>
+			try {
+				const theme = localStorage.getItem('beatcode.theme');
+				const motion = localStorage.getItem('beatcode.motion');
+				if (['light', 'dark', 'contrast'].includes(theme))
+					document.documentElement.dataset.theme = theme;
+				if (motion === 'reduce') document.documentElement.dataset.motion = motion;
+			} catch {
+				/* Use device preferences when storage is unavailable. */
+			}
+		</script>
+		%sveltekit.head%
+	</head>
+	<body data-sveltekit-preload-data="false" data-sveltekit-preload-code="false">
+		<div style="display: contents">%sveltekit.body%</div>
+		<noscript>Beatcode needs JavaScript for sign-in and live private matches.</noscript>
+	</body>
+</html>

@@ -1,0 +1,3 @@
+This browser regression mounts the production Match, Editor and game client. Only the Convex SDK query boundary and framework URL resolution use local public fixtures. It verifies which compiler diagnostics the UI displays when scored and sample attempts arrive in either order, including a newer attempt without diagnostics. It also checks that sample history displays the overall verdict alongside per-sample results.
+
+Run `bun run test:game-ui`. All traffic outside the local fixture server is blocked. These tests establish component behavior; they do not establish authentication, backend persistence, native judging or production acceptance. The real authenticated Match suite remains a separate integration gate.
