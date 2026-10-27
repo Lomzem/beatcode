@@ -109,7 +109,7 @@
 			}).pipe(
 				Effect.catchTag('StorageUnavailable', () =>
 					Effect.sync(() => {
-						message = `${change} Applied for now. Your browser could not save preferences on this device.`;
+						message = `${change} Your browser could not save preferences on this device.`;
 					})
 				)
 			)
