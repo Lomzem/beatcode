@@ -24,7 +24,7 @@
 		<ul>
 			<li><a href="https://clerk.com/legal/privacy">Clerk</a></li>
 			<li><a href="https://www.convex.dev/legal/privacy">Convex</a></li>
-			<li><a href="https://modal.com/legal/privacy">Modal</a></li>
+			<li><a href="https://modal.com/legal/privacy-policy">Modal</a></li>
 			<li><a href="https://www.cloudflare.com/privacypolicy/">Cloudflare</a></li>
 		</ul>
 		<p>
