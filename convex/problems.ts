@@ -209,6 +209,19 @@ export const _createVersion = internalMutation({
 						existing.packageSha256 !== args.packageSha256 ||
 						existing.judgeEnvId !== args.judgeEnvId ||
 						existing.testsSha256 !== args.testsSha256 ||
+						existing.statementMd !== args.statementMd ||
+						existing.samples.length !== args.samples.length ||
+						existing.samples.some(
+							(sample, i) =>
+								sample.input !== args.samples[i].input || sample.output !== args.samples[i].output
+						) ||
+						!existing.referenceSolutions ||
+						serializeReferences(existing.referenceSolutions) !==
+							serializeReferences(args.referenceSolutions) ||
+						existing.limits.memoryMiB !== args.limits.memoryMiB ||
+						existing.limits.outputKiB !== args.limits.outputKiB ||
+						existing.limits.aggregateMs !== args.limits.aggregateMs ||
+						(existing.status === 'draft' && existing.limits.timeMs !== args.limits.timeMs) ||
 						JSON.stringify(existing.productionBaseline) !== JSON.stringify(args.productionBaseline)
 					)
 						return yield* reject('BAD_INPUT');

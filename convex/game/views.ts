@@ -55,6 +55,7 @@ export function roundView(
 				.collect()
 		)).map((s) => ({
 			sampleRunId: s._id,
+			verdict: s.verdict === 'OLE' ? 'WA' : (s.verdict ?? null),
 			purgedAt: s.purgedAt ?? null,
 			status: s.status,
 			createdAt: s.createdAt,

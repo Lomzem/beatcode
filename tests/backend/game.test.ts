@@ -830,6 +830,30 @@ describe('authenticated game API', () => {
 		expect(view.rounds[0].ownSubmissions[0].verdict).toBe('RE');
 	});
 
+	it('preserves the aggregate sample verdict independently of completed per-sample results', async () => {
+		vi.useFakeTimers();
+		const t = harness();
+		const { a, b, matchId, roundId } = await start(t);
+		await t.mutation(internal.ops.setJudging, { enabled: true });
+		await a.mutation(api.samples.run, {
+			roundId,
+			source: 'sample source',
+			clientRunId: 'aggregate'
+		});
+		const [job] = await claimAll(t);
+		await t.mutation(internal.judge._complete, {
+			attemptId: job.attemptId,
+			leaseVersion: job.leaseVersion,
+			result: { ...result('TLE'), phase: 'sample', sampleResults: [{ verdict: 'AC', output: '5' }] }
+		});
+		expect((await a.query(api.matches.view, { matchId })).ownSampleRuns[0]).toMatchObject({
+			status: 'done',
+			verdict: 'TLE',
+			results: [{ verdict: 'AC', output: '5' }]
+		});
+		expect((await b.query(api.matches.view, { matchId })).ownSampleRuns).toEqual([]);
+	});
+
 	it('runs only public samples during brain teaser without consuming strict compile or exposing sample output to the opponent', async () => {
 		vi.useFakeTimers();
 		const t = harness();
