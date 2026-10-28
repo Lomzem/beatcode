@@ -2,26 +2,6 @@ import { Effect } from 'effect';
 import { runBackend, step, reject } from './game/effect';
 import { v } from 'convex/values';
 import { internalMutation } from './_generated/server';
-import { hashToken, secretToken } from './game/tokens';
-export const mintHostPass = internalMutation({
-	args: { note: v.string() },
-	handler: (ctx, { note }) =>
-		runBackend(
-			Effect.gen(function* () {
-				if (note.length > 200) return yield* reject('BAD_INPUT');
-				const code = secretToken();
-				yield* step(
-					ctx.db.insert('hostPasses', {
-						codeHash: yield* hashToken(code),
-						note,
-						createdAt: Date.now(),
-						expiresAt: Date.now() + 14 * 86400_000
-					})
-				);
-				return { code };
-			})
-		)
-});
 import { settings } from './game/usage';
 import { internal } from './_generated/api';
 export const setJudging = internalMutation({
@@ -167,6 +147,35 @@ export const timingReport = internalQuery({
 		runBackend(
 			Effect.gen(function* () {
 				return yield* reportTiming(ctx, problemVersionId);
+			})
+		)
+});
+
+// Transitional deployment only: see docs/migrations/retire-host-passes.md.
+// The final schema deliberately has no types for the retired table or field.
+import type { GenericDatabaseWriter, GenericDataModel } from 'convex/server';
+import type { GenericId } from 'convex/values';
+export const retireHostPasses = internalMutation({
+	args: {
+		phase: v.union(v.literal('players'), v.literal('passes')),
+		cursor: v.union(v.string(), v.null())
+	},
+	handler: (ctx, { phase, cursor }) =>
+		runBackend(
+			Effect.gen(function* () {
+				const db: GenericDatabaseWriter<GenericDataModel> = ctx.db;
+				const page = yield* step(
+					db
+						.query(phase === 'players' ? 'players' : 'hostPasses')
+						.paginate({ cursor, numItems: 100 })
+				);
+				for (const row of page.page) {
+					if (phase === 'players') {
+						if ('canHost' in row)
+							yield* step(db.patch(row._id as GenericId<'players'>, { canHost: undefined }));
+					} else yield* step(db.delete(row._id as GenericId<'hostPasses'>));
+				}
+				return { done: page.isDone, cursor: page.continueCursor };
 			})
 		)
 });

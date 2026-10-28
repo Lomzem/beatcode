@@ -11,7 +11,6 @@ export const create = mutation({
 		runBackend(
 			Effect.gen(function* () {
 				const p = yield* requirePlayer(ctx);
-				if (!p.canHost) return yield* reject('DISABLED', 'Host pass required');
 				const rooms = yield* step(
 					ctx.db
 						.query('rooms')

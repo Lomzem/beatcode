@@ -1,0 +1,25 @@
+--- a/convex/schema.ts
++++ b/convex/schema.ts
+@@ -262,6 +262,14 @@
+ 		refId: v.optional(v.string()),
+ 		detail: v.string()
+ 	}).index('by_kind', ['kind']),
++	hostPasses: defineTable({
++		codeHash: v.string(),
++		note: v.string(),
++		createdAt: v.number(),
++		expiresAt: v.number(),
++		redeemedBy: v.optional(v.id('players')),
++		redeemedAt: v.optional(v.number())
++	}).index('by_hash', ['codeHash']),
+ 	rooms: defineTable({
+ 		hostId: v.id('players'),
+ 		guestId: v.optional(v.id('players')),
+@@ -287,6 +295,7 @@
+ 	players: defineTable({
+ 		tokenIdentifier: v.string(),
+ 		displayName: v.string(),
++		canHost: v.optional(v.boolean()),
+ 		disabled: v.boolean(),
+ 		createdAt: v.number(),
+ 		failedJoins: v.optional(v.object({ windowStart: v.number(), count: v.number() }))

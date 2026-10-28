@@ -46,7 +46,6 @@ export const ensure = mutation({
 					ctx.db.insert('players', {
 						tokenIdentifier: user.tokenIdentifier,
 						displayName: name,
-						canHost: false,
 						disabled: false,
 						createdAt: Date.now()
 					})
@@ -69,34 +68,7 @@ export const me = query({
 				);
 				if (!p) return null;
 				if (p.disabled) return yield* reject('DISABLED');
-				return { playerId: p._id, displayName: p.displayName, canHost: p.canHost };
-			})
-		)
-});
-import { hashToken } from './game/tokens';
-export const redeemHostPass = mutation({
-	args: { code: v.string() },
-	handler: (ctx, { code }) =>
-		runBackend(
-			Effect.gen(function* () {
-				const player = yield* requirePlayer(ctx);
-				if (code.length > 128) return yield* reject('BAD_INPUT');
-				const hash = yield* hashToken(code);
-				const found = yield* step(
-					ctx.db
-						.query('hostPasses')
-						.withIndex('by_hash', (q) => q.eq('codeHash', hash))
-						.unique()
-				);
-				if (
-					!found ||
-					found.expiresAt <= Date.now() ||
-					(found.redeemedBy && found.redeemedBy !== player._id)
-				)
-					return yield* reject('BAD_INPUT');
-				if (!found.redeemedBy)
-					yield* step(ctx.db.patch(found._id, { redeemedBy: player._id, redeemedAt: Date.now() }));
-				yield* step(ctx.db.patch(player._id, { canHost: true }));
+				return { playerId: p._id, displayName: p.displayName };
 			})
 		)
 });

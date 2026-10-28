@@ -1,0 +1,12 @@
+# Retire legacy hosting data
+
+Existing deployments need this migration **before deploying the final schema** in this revision. Fresh deployments need no migration. Do not disable schema validation or delete players. Keep deployment and authenticated CI jobs for the target paused throughout these steps, using one trusted checkout and the same explicit deployment target throughout.
+
+1. Apply `git apply docs/migrations/retire-host-passes.patch`. This temporary schema retains the legacy pass table and makes the old player field optional. All application writes already omit the field, and minting/redemption have been removed.
+2. Deploy this transitional revision to the target using the installed Convex CLI (`bunx --no-install convex deploy --yes` for production). Check the selected deployment before running commands. For development targets use the installed CLI's supported deployment selector. Keep the transitional schema deployed until both cleanup phases finish.
+3. Run `bunx --no-install convex run --prod ops:retireHostPasses '{"phase":"players","cursor":null}'`. Each invocation handles at most 100 rows. If `done` is false, repeat with the returned `cursor` until `done` is true. Then do the same with `phase` set to `passes`, starting at `cursor: null`. Use the same deployment selector for every invocation. This internal mutation requires trusted deployment access. It strips only the retired field from players and deletes legacy passes; disabled status, identities, rooms and usage counters are preserved.
+4. Restore the final schema with `git apply -R docs/migrations/retire-host-passes.patch`, then deploy the final revision normally. Schema validation now verifies that no player contains the retired field. The retired table was emptied before removal from the schema. Resume the target's deployment/CI jobs.
+
+Cleanup is idempotent. If interrupted, resume the last cursor or restart each phase from null. Do not redeploy an older revision that writes the retired field or mints passes during cleanup. A failed final schema validation means cleanup or deployment ordering is incomplete; keep the transitional schema and finish cleanup before retrying. Never commit the temporary patch application.
+
+`ops:retireHostPasses` remains internal solely for this deployment transition. It does not grant hosting rights or mint/redeem passes. Remove this migration helper and its runbook once every persistent deployment has completed the transition.

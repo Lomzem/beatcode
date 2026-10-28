@@ -472,12 +472,9 @@ test('a real development account verifies email, persists its nickname, and reco
 	const tokenFile = required
 		? join(process.env.MATCH_E2E_PRIVATE_DIR!, 'testing-token.json')
 		: process.env.MATCH_E2E_TESTING_TOKEN_FILE;
-	const passFile = required
-		? join(process.env.MATCH_E2E_PRIVATE_DIR!, test.info().project.name, 'new-pass')
-		: process.env.MATCH_E2E_HOST_PASS_FILE;
 	test.skip(
-		!required && (!target || !tokenFile || !passFile),
-		'Requires a real dev frontend, official Clerk testing token, and unused backend host pass.'
+		!required && (!target || !tokenFile),
+		'Requires a real dev frontend and official Clerk testing token.'
 	);
 	test.setTimeout(120000);
 	const pings = observeClockPings(page);
@@ -507,14 +504,8 @@ test('a real development account verifies email, persists its nickname, and reco
 	}
 	await page.getByLabel('Nickname', { exact: true }).fill('UI host');
 	await activate(page.getByRole('button', { name: 'Save nickname', exact: true }));
-	await page
-		.locator('summary')
-		.filter({ hasText: /^Redeem host pass$/ })
-		.press('Enter');
-	await page.getByLabel('Host pass').fill((await readFile(passFile!, 'utf8')).trim());
-	await activate(page.getByRole('button', { name: 'Redeem host pass', exact: true }));
 	await expect(page.getByRole('button', { name: 'Create room', exact: true })).toBeEnabled();
-	// Saving the nickname starts the clock; redeeming the pass refreshes the same profile.
+	// Saving the nickname starts the clock; rerendering must preserve that subscription.
 	await page.waitForTimeout(2000);
 	expectClockNotRestarted(pings);
 	await page.reload();
