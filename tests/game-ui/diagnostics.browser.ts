@@ -1,11 +1,9 @@
 import { expect, test } from '@playwright/test';
+import { isolate } from './isolation';
 
 test.beforeEach(async ({ context, page }) => {
-	await context.route('**/*', (route) =>
-		new URL(route.request().url()).hostname === '127.0.0.1' ? route.continue() : route.abort()
-	);
-	await context.routeWebSocket(/.*/, (socket) => socket.close());
-	await page.goto('/');
+	await isolate(context);
+	await page.goto('/?state=match-active');
 });
 
 test('the newest scored or sample attempt replaces or clears compiler diagnostics', async ({
