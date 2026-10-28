@@ -16,7 +16,7 @@ The second player, admitted to a room by its invitation.
 _Avoid_: Opponent (when meaning the room role)
 
 **Invitation**:
-The private link, or its equivalent short room code, that a host shares to admit one guest to their room. It stops admitting once a guest joins or it expires; the host may replace it.
+The private link that a host shares to admit one guest to their room. It stops admitting once a guest joins or it expires; the host may replace it.
 _Avoid_: Invite
 
 **Match**:
