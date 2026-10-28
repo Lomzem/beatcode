@@ -18,6 +18,10 @@ Use T3's collaborative `preview_*` tools for interactive UI inspection and verif
 
 Before implementing or reviewing TypeScript, dependency changes, or CI commands, read [Effect and Bun conventions](docs/agents/typescript.md).
 
+## Local development and rate limits
+
+Keep the development loop local. Before starting services, running tests that contact hosted services, pushing PR updates, or requesting external review, read [Local development and review gates](docs/agents/local-development.md). Complete applicable local checks and internal review before CodeRabbit; batch prepared changes to conserve hosted quotas.
+
 ## Agent skills
 
 ### Issue tracker
