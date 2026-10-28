@@ -361,3 +361,35 @@ it('forwards only an exact plain-integer clock ping count from child stdout', as
 		output.mockRestore();
 	}
 });
+
+it('forwards fixed case and project timings without private fields or malformed durations', async () => {
+	const safe = ['CI timing: chromium-320 match 1200ms', 'CI timing: webkit-1280 project 2500ms'];
+	const lines = [
+		...safe,
+		'CI timing: chromium-320 match 1200ms email@example.invalid',
+		'CI timing: chromium-320 private-session 1200ms',
+		'CI timing: private-project match 1200ms',
+		'CI timing: chromium-320 match -1ms',
+		'CI timing: chromium-320 match 1.5ms',
+		'CI timing: chromium-320 match Infinityms',
+		'CI timing: chromium-320 match 12ms\rprivate-token',
+		'CI timing: chromium-320 match 12ms ',
+		'CI timing: chromium-320 match 12ms\u001b[31m'
+	];
+	const emitted: string[] = [];
+	const output = vi.spyOn(console, 'info').mockImplementation((line) => {
+		emitted.push(String(line));
+	});
+	try {
+		await Effect.runPromise(
+			runCommand(
+				['node', '-e', `process.stdout.write(${JSON.stringify(lines.join('\n') + '\n')})`],
+				'Timing child failed',
+				process.env
+			)
+		);
+		expect(emitted).toEqual(safe);
+	} finally {
+		output.mockRestore();
+	}
+});

@@ -113,40 +113,114 @@ test('the production workflow passes isolated credentials through reusable authe
 	}
 });
 
-test('the authenticated coverage process fails when selected cases skip or coverage shrinks', () => {
-	const folder = mkdtempSync(join(tmpdir(), 'beatcode-coverage-'));
-	try {
-		const playwright = resolve('node_modules/@playwright/test/index.mjs');
-		writeFileSync(
-			join(folder, 'playwright.config.mjs'),
-			`export default { testDir: '.', reporter: [[${JSON.stringify(resolve('tests/e2e/coverage-reporter.ts'))}]] };`
-		);
-		for (const [body, expected] of [
-			["test.skip('auth', () => {});", 1],
-			["test('auth', () => {});", 1],
-			["for (let i = 0; i < 36; i++) test('auth ' + i, () => {});", 0]
-		] as const) {
-			writeFileSync(
-				join(folder, 'coverage.spec.mjs'),
-				`import { test } from ${JSON.stringify(playwright)}; ${body}`
+test(
+	'authenticated coverage requires every project/scenario once and preserves project case order',
+	{ timeout: 60000 },
+	() => {
+		const folder = mkdtempSync(join(tmpdir(), 'beatcode-coverage-'));
+		try {
+			const playwright = resolve('node_modules/@playwright/test/index.mjs');
+			const titles = [
+				'two authenticated players create, join, ready, preserve code, and concede a match',
+				'ready commits the displayed saved deck and locks editing until cancelled',
+				'a real development account verifies email, persists its nickname, and recovers a private room',
+				'strict compile reaches a scored verdict and round result through the authenticated UI'
+			];
+			const projects = ['chromium', 'firefox', 'webkit'].flatMap((browser) =>
+				[320, 768, 1280].map((width) => ({ name: `${browser}-${width}` }))
 			);
-			const result = spawnSync(
-				'node',
+			const config = join(folder, 'playwright.config.mjs');
+			const run = (body: string, selected = projects) => {
+				writeFileSync(
+					config,
+					`export default {
+				testDir: '.', outputDir: ${JSON.stringify(join(folder, 'results'))},
+				fullyParallel: false, workers: 2, retries: 0, maxFailures: 1,
+				projects: ${JSON.stringify(selected)},
+				reporter: [[${JSON.stringify(resolve('tests/e2e/coverage-reporter.ts'))}]]
+			};`
+				);
+				writeFileSync(
+					join(folder, 'match-authenticated.spec.mjs'),
+					`import { test } from ${JSON.stringify(playwright)}; ${body}`
+				);
+				return spawnSync(
+					'node',
+					[resolve('node_modules/@playwright/test/cli.js'), 'test', '--config', config],
+					{
+						env: { PATH: process.env.PATH },
+						encoding: 'utf8',
+						timeout: 30000
+					}
+				);
+			};
+			const cases = (names: string[]) =>
+				names.map((title) => `test(${JSON.stringify(title)}, () => {});`).join('\n');
+			const full = run(`let next = 0;
+			${titles
+				.map(
+					(title, index) => `test(${JSON.stringify(title)}, async ({}, info) => {
+				if (next++ !== ${index}) throw new Error('Project order lost');
+				console.info('Fixture worker: ' + info.parallelIndex);
+				await new Promise(resolve => setTimeout(resolve, 10));
+			});`
+				)
+				.join('\n')}`);
+			assert.equal(full.status, 0, full.stdout + full.stderr);
+			assert.match(full.stdout, /Fixture worker: 0/);
+			assert.match(full.stdout, /Fixture worker: 1/);
+			assert.match(full.stdout, /36 passed, 0 failed\/skipped; required exact 36; complete/);
+			assert.equal(
+				(
+					full.stdout.match(/CI timing: (chromium|firefox|webkit)-(320|768|1280) project \d+ms/g) ??
+					[]
+				).length,
+				9
+			);
+			const interrupted = run(`
+				import { mkdirSync, existsSync } from 'node:fs';
+				test.beforeAll(async ({}, info) => {
+					mkdirSync(${JSON.stringify(folder)} + '/' + info.project.name);
+					console.info('Fixture setup: ' + info.project.name);
+				});
+				test(${JSON.stringify(titles[0])}, async ({}, info) => {
+					const until = Date.now() + 5000;
+					while (!existsSync(${JSON.stringify(folder)} + '/chromium-320') ||
+						!existsSync(${JSON.stringify(folder)} + '/chromium-768')) {
+						if (Date.now() > until) throw new Error('Second project did not start');
+						await new Promise(resolve => setTimeout(resolve, 10));
+					}
+					if (info.project.name === 'chromium-320') throw new Error('Deliberate fixture failure');
+					await new Promise(resolve => setTimeout(resolve, 10000));
+				});
+				${cases(titles.slice(1))}
+			`);
+			assert.equal(interrupted.status, 1, interrupted.stdout + interrupted.stderr);
+			assert.match(interrupted.stdout, /CI case: chromium-320 failed/);
+			assert.match(interrupted.stdout, /CI case: chromium-768 interrupted/);
+			assert.match(interrupted.stdout, /required exact 36; incomplete/);
+			assert.deepEqual(
+				[...interrupted.stdout.matchAll(/Fixture setup: (\S+)/g)].map((match) => match[1]).sort(),
+				['chromium-320', 'chromium-768']
+			);
+			for (const [body, selected] of [
+				[cases(titles.slice(1)), projects],
+				[cases(['replacement', ...titles.slice(1)]), projects],
+				[cases(titles) + `test.describe('duplicate', () => { ${cases([titles[0]])} });`, projects],
+				[cases(titles), projects.slice(1)],
+				[cases(titles), [...projects, { name: 'unknown-project' }]],
+				[`test.skip(${JSON.stringify(titles[0])}, () => {});` + cases(titles.slice(1)), projects],
 				[
-					resolve('node_modules/@playwright/test/cli.js'),
-					'test',
-					'--config',
-					join(folder, 'playwright.config.mjs')
-				],
-				{
-					env: { PATH: process.env.PATH },
-					encoding: 'utf8'
-				}
-			);
-			assert.equal(result.status, expected);
-			assert.match(result.stdout, /required minimum 36/);
+					"for (let i = 0; i < 36; i++) test('unrelated ' + i, () => {});",
+					[{ name: 'chromium-320' }]
+				]
+			] as const) {
+				const result = run(body, [...selected]);
+				assert.equal(result.status, 1, result.stdout + result.stderr);
+				assert.match(result.stdout, /required exact 36; incomplete/);
+			}
+		} finally {
+			rmSync(folder, { recursive: true, force: true });
 		}
-	} finally {
-		rmSync(folder, { recursive: true, force: true });
 	}
-});
+);
