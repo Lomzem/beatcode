@@ -12,7 +12,8 @@ export default defineConfig({
 	...publicConfig,
 	testMatch: '**/match-authenticated.spec.ts',
 	fullyParallel: false,
-	workers: 1,
+	// Projects own separate accounts; keep scenarios within each project sequential.
+	workers: 2,
 	retries: 0,
 	maxFailures: 1,
 	timeout: 180000,

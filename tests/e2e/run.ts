@@ -48,6 +48,11 @@ const config = Effect.try({
 // Capture command diagnostics: Convex/Playwright failures can include private URLs,
 // source, invitations and session data. Only fixed stage names reach Actions logs.
 
+const startStage = (stage: 'deploy' | 'setup' | 'build' | 'matrix' | 'cleanup') => {
+	const started = performance.now();
+	return () => console.info(`CI stage: ${stage} ${Math.round(performance.now() - started)}ms`);
+};
+
 const program = Effect.gen(function* () {
 	const { url, key } = yield* config;
 	if (process.argv.includes('--validate')) return;
@@ -107,6 +112,7 @@ const program = Effect.gen(function* () {
 				'CI artifact manifest cleanup failed'
 			).pipe(Effect.orDie)
 	);
+	const finishDeployment = startStage('deploy');
 	console.info('Authenticated CI: deploy isolated test app');
 	yield* command(
 		[
@@ -138,6 +144,8 @@ const program = Effect.gen(function* () {
 		env,
 		resolve('tests/e2e')
 	);
+	finishDeployment();
+	const finishSetup = startStage('setup');
 	yield* recoverAccountRuns(recoveryBase);
 	const recovery = yield* openAccountRun(recoveryBase);
 	env.MATCH_E2E_RECOVERY_DIR = recovery;
@@ -150,6 +158,8 @@ const program = Effect.gen(function* () {
 				writeFile(join(directory, 'testing-token.json'), JSON.stringify(token), { mode: 0o600 }),
 			'Testing Token setup failed'
 		);
+		finishSetup();
+		const finishBuild = startStage('build');
 		console.info('Authenticated CI: build and run real hosted-account browser matrix');
 		yield* command(['bun', 'run', 'build'], 'Authenticated frontend build failed', env);
 		yield* command(
@@ -158,15 +168,19 @@ const program = Effect.gen(function* () {
 			env
 		);
 		yield* ciHeaders();
+		finishBuild();
+		const finishMatrix = startStage('matrix');
 		yield* command(
 			['bunx', '--no-install', 'playwright', 'test', '--config', 'playwright.ci.config.ts'],
 			'Authenticated browser coverage failed (no auth artifacts retained)',
 			env
 		);
+		finishMatrix();
 		console.info('Authenticated CI: required browser coverage passed');
 	}).pipe(
 		Effect.ensuring(
 			Effect.gen(function* () {
+				const finishCleanup = startStage('cleanup');
 				// Recovery intents live outside ephemeral credentials/storage and survive failures.
 				const cleanup = yield* Effect.all([cleanupAccountRun(recovery), call('bootstrap:reset')], {
 					mode: 'result',
@@ -174,6 +188,8 @@ const program = Effect.gen(function* () {
 				});
 				if (cleanup.some((result) => result._tag === 'Failure'))
 					yield* Effect.fail(new CiFailure({ message: 'Authenticated CI cleanup failed' }));
+				finishCleanup();
+				console.info('Authenticated CI: cleanup passed');
 			}).pipe(Effect.orDie)
 		)
 	);

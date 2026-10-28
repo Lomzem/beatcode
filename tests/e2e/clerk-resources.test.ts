@@ -28,7 +28,7 @@ async function service() {
 	let emptyList = false;
 	let directStatus = 200;
 	let mismatch = false;
-	let created: Record<string, unknown> | null = null;
+	const accounts = new Map<string, Record<string, unknown>>();
 	let intentBeforePost = false;
 	let failDelete = false;
 	const deleted: string[] = [];
@@ -64,7 +64,7 @@ async function service() {
 			return;
 		}
 		if (request.method === 'POST') {
-			creates++;
+			const sequence = ++creates;
 
 			let body = '';
 			for await (const chunk of request) body += chunk;
@@ -72,12 +72,13 @@ async function service() {
 			intentBeforePost =
 				(await readdir(directory)).some((name) => name.endsWith('.intent.json')) &&
 				remote.has(input.private_metadata.beatcode_ci_account);
-			created = {
+			const created = {
 				...input,
 				email_addresses: input.email_address.map((email_address: string) => ({ email_address })),
-				id: 'user_new_ci',
+				id: sequence === 1 ? 'user_new_ci' : `user_new_ci_${sequence}`,
 				created_at: Date.now()
 			};
+			accounts.set(created.id, created);
 			arrived();
 			// Simulate a committed creation whose response is lost when the worker dies.
 			setTimeout(() => {
@@ -87,10 +88,11 @@ async function service() {
 			if (failDelete) response.writeHead(503).end('{}');
 			else {
 				deleted.push(url.pathname.split('/').at(-1)!);
-				created = null;
+				accounts.delete(url.pathname.split('/').at(-1)!);
 				response.end('{"deleted":true}');
 			}
 		} else if (url.pathname.startsWith('/v1/users/')) {
+			const created = accounts.get(url.pathname.split('/').at(-1)!);
 			if (directStatus !== 200) response.writeHead(directStatus).end('{}');
 			else
 				response.end(
@@ -98,7 +100,7 @@ async function service() {
 						created ? { ...created, ...(mismatch ? { external_id: 'another-account' } : {}) } : null
 					)
 				);
-		} else response.end(JSON.stringify([old, ...(!emptyList && created ? [created] : [])]));
+		} else response.end(JSON.stringify([old, ...(!emptyList ? [...accounts.values()] : [])]));
 	});
 	server.listen(0, '127.0.0.1');
 	await once(server, 'listening');
@@ -269,6 +271,26 @@ it('direct known-ID 404 confirms absence and releases recovery', async () => {
 		await Effect.runPromise(cleanupAccountRun(api.directory));
 		expect(api.deleted).toEqual([]);
 		expect(api.remote.size).toBe(0);
+	} finally {
+		await api.close();
+	}
+});
+
+it('concurrent project accounts retain separate recovery records and are all cleaned', async () => {
+	const api = await service();
+	try {
+		const emails = await Promise.all(
+			[0, 1, 2].map(() => Effect.runPromise(createDevAccount(api.directory)))
+		);
+		expect(new Set(emails).size).toBe(3);
+		expect(api.remote.size).toBe(3);
+		expect(
+			(await readdir(api.directory)).filter((name) => name.endsWith('.intent.json'))
+		).toHaveLength(3);
+		await Effect.runPromise(cleanupAccountRun(api.directory));
+		expect(api.deleted.sort()).toEqual(['user_new_ci', 'user_new_ci_2', 'user_new_ci_3']);
+		expect(api.remote.size).toBe(0);
+		await expect(stat(api.directory)).rejects.toThrow();
 	} finally {
 		await api.close();
 	}
