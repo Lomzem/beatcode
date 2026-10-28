@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { parse } from 'yaml';
+import { runInNewContext } from 'node:vm';
 
 test('required authenticated CI refuses absent configuration before deploying or launching browsers', () => {
 	const result = spawnSync('bun', ['tests/e2e/run.ts', '--validate'], {
@@ -111,6 +112,112 @@ test('the production workflow passes isolated credentials through reusable authe
 	for (const name of Object.keys(forwarded)) {
 		assert.equal(callee.on.workflow_call.secrets?.[name]?.required, true);
 	}
+});
+
+test('fast validation releases independent browser jobs without dropping or duplicating suites', () => {
+	type Job = { needs?: string | string[]; if?: string; steps?: { run?: string }[] };
+	const { jobs } = parse(readFileSync('.github/workflows/checks.yml', 'utf8')) as {
+		jobs: Record<string, Job>;
+	};
+	const commands = (job: Job) => job.steps?.flatMap((step) => (step.run ? [step.run] : [])) ?? [];
+	const fast = Object.entries(jobs).find(([, job]) =>
+		commands(job).includes('bun run test:backend')
+	);
+	const browser = Object.entries(jobs).find(([, job]) =>
+		commands(job).includes('bun run test:browser')
+	);
+	assert.ok(fast, 'Non-browser suites must have a fast validation job');
+	assert.ok(browser, 'Public browser suites must have an independent job');
+	assert.notEqual(fast[0], browser[0]);
+	assert.ok(![...commands(fast[1]), ...commands(browser[1])].includes('bun run test'));
+	assert.deepEqual([jobs.authenticated.needs].flat(), [fast[0]]);
+	assert.deepEqual([browser[1].needs].flat(), [fast[0]]);
+	const existing = JSON.parse(readFileSync('package.json', 'utf8'))
+		.scripts.test.split(' && ')
+		.sort();
+	const scheduled = [...commands(fast[1]), ...commands(browser[1])]
+		.filter((command) => existing.includes(command))
+		.sort();
+	assert.deepEqual(scheduled, existing, 'Every existing suite must execute exactly once');
+	for (const harness of [
+		'bun test tests/e2e/required.test.ts',
+		'bunx --no-install vitest run --config tests/e2e/vitest.config.ts'
+	])
+		assert.ok(commands(fast[1]).includes(harness), 'Harness checks must precede hosted work');
+});
+
+test('aggregate and production gates reject failed, cancelled, missing or skipped required coverage', () => {
+	type Job = {
+		needs?: string[];
+		if?: string;
+		steps?: { env?: Record<string, string>; run?: string }[];
+	};
+	const checks = parse(readFileSync('.github/workflows/checks.yml', 'utf8')).jobs as Record<
+		string,
+		Job
+	>;
+	const gate = checks.checks.steps?.find((step) => step.env?.AUTHENTICATED_REQUIRED);
+	assert.ok(gate?.run, 'The required checks job must aggregate all suite results');
+	assert.equal(checks.checks.if, 'always()');
+	assert.deepEqual(checks.checks.needs?.slice().sort(), ['authenticated', 'browser', 'validate']);
+	const production = parse(readFileSync('.github/workflows/deploy.yml', 'utf8')).jobs;
+	const productionGate = production['require-authenticated-ci'].steps.find(
+		(step: { run?: string }) => step.run
+	)?.run;
+	assert.ok(productionGate);
+	const output = parse(readFileSync('.github/workflows/checks.yml', 'utf8')).on.workflow_call
+		.outputs['authenticated-result'].value;
+	assert.equal(output, '${{ jobs.authenticated.result }}');
+	const condition = gate.env!.AUTHENTICATED_REQUIRED.slice(3, -2).trim();
+	for (const [repository, eventName, headRepo, expected] of [
+		['Lomzem/beatcode', 'pull_request', 'Lomzem/beatcode', true],
+		['Lomzem/beatcode', 'pull_request', 'someone/fork', false],
+		['Lomzem/beatcode', 'push', undefined, true],
+		['someone/fork', 'pull_request', 'someone/fork', false]
+	] as const) {
+		const github = {
+			repository,
+			event_name: eventName,
+			event: headRepo ? { pull_request: { head: { repo: { full_name: headRepo } } } } : {}
+		};
+		// These workflow expressions deliberately use only the JS-compatible boolean subset.
+		assert.equal(
+			runInNewContext(checks.authenticated.if!, { github }, { timeout: 1000 }),
+			expected
+		);
+		assert.equal(runInNewContext(condition, { github }, { timeout: 1000 }), expected);
+	}
+	for (const required of ['true', 'false', ''])
+		for (const validation of ['success', 'failure', 'cancelled', 'skipped'])
+			for (const browser of ['success', 'failure', 'cancelled', 'skipped'])
+				for (const authenticated of ['success', 'failure', 'cancelled', 'skipped', '']) {
+					const aggregateStatus: number | null = spawnSync('bash', ['-e', '-c', gate.run], {
+						env: {
+							PATH: process.env.PATH,
+							VALIDATION_RESULT: validation,
+							BROWSER_RESULT: browser,
+							AUTHENTICATED_REQUIRED: required,
+							AUTHENTICATED_RESULT: authenticated
+						}
+					}).status;
+					const passed =
+						validation === 'success' &&
+						browser === 'success' &&
+						(required === 'false' || (required === 'true' && authenticated === 'success'));
+					assert.equal(
+						aggregateStatus,
+						passed ? 0 : 1,
+						JSON.stringify({ required, validation, browser, authenticated })
+					);
+					const deployStatus = spawnSync('bash', ['-e', '-c', productionGate], {
+						env: {
+							PATH: process.env.PATH,
+							CHECKS_RESULT: passed ? 'success' : 'failure',
+							AUTHENTICATED_RESULT: authenticated
+						}
+					}).status;
+					assert.equal(deployStatus, passed && authenticated === 'success' ? 0 : 1);
+				}
 });
 
 test(
