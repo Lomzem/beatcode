@@ -28,6 +28,8 @@ const generateHeaders = Effect.gen(function* () {
 		catch: () => new HeaderGenerationError({ operation: 'validate production origins' })
 	});
 	const clerk = 'https://clerk.beatcode.org';
+	// Clerk Protect uses rotating subdomains and alternate HTTPS ports.
+	const protect = 'https://*.protect.clerk.com';
 	// Cloudflare always uses index.html as its SPA fallback. Keep Kit's rendered
 	// homepage separately and proxy only / to it; every other asset keeps normal
 	// static resolution and every unmatched URL keeps Kit's client-side router.
@@ -60,9 +62,9 @@ const generateHeaders = Effect.gen(function* () {
 	}
 	const policy = [
 		"default-src 'self'",
-		`script-src 'self' ${clerk} https://challenges.cloudflare.com ${[...bootstrapHashes].sort().join(' ')}`,
-		`connect-src 'self' ${backend.origin} wss://${backend.host} ${clerk}`,
-		`frame-src ${clerk} https://challenges.cloudflare.com`,
+		`script-src 'self' ${clerk} https://challenges.cloudflare.com ${protect} ${[...bootstrapHashes].sort().join(' ')}`,
+		`connect-src 'self' ${backend.origin} wss://${backend.host} ${clerk} ${protect}:*`,
+		`frame-src ${clerk} https://challenges.cloudflare.com ${protect}`,
 		"img-src 'self' data: https://img.clerk.com",
 		"font-src 'self'",
 		"style-src 'self' 'unsafe-inline'",

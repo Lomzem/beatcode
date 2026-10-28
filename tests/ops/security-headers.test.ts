@@ -107,6 +107,21 @@ it('serves immutable assets with only the immutable cache policy and the shared 
 	expect(fallback.get('cache-control')).toBe('no-cache');
 	const policy = home.get('content-security-policy');
 	expect(policy).toContain("frame-ancestors 'none'");
+	// Clerk's published CSP contract requires Protect's rotating subdomains and
+	// non-default HTTPS ports: https://clerk.com/docs/guides/secure/best-practices/csp-headers
+	const directives = new Map(
+		policy!.split(';').map((directive) => {
+			const [name, ...sources] = directive.trim().split(/\s+/);
+			return [name, sources];
+		})
+	);
+	for (const directive of ['script-src', 'frame-src']) {
+		expect(directives.get(directive)).toContain('https://*.protect.clerk.com');
+	}
+	expect(directives.get('connect-src')).toContain('https://*.protect.clerk.com:*');
+	for (const forbidden of ["'unsafe-inline'", "'unsafe-eval'", '*', 'https:']) {
+		expect(directives.get('script-src')).not.toContain(forbidden);
+	}
 	for (const headers of [asset, fallback]) {
 		expect(headers.get('content-security-policy')).toBe(policy);
 		expect(headers.get('x-content-type-options')).toBe('nosniff');
