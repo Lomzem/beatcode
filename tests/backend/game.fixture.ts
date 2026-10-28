@@ -14,8 +14,6 @@ export async function lobby(t: ReturnType<harness>) {
 	const b = t.withIdentity({ tokenIdentifier: 'issuer|bob' });
 	await a.mutation(api.players.ensure, { displayName: 'Alice' });
 	await b.mutation(api.players.ensure, { displayName: 'Bobby' });
-	const { code } = await t.mutation(internal.ops.mintHostPass, { note: 'fixture' });
-	await a.mutation(api.players.redeemHostPass, { code });
 	const room = await a.mutation(api.rooms.create, {});
 	await b.mutation(api.rooms.join, room);
 	return { a, b, roomId: room.roomId };

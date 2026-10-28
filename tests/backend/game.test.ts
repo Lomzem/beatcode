@@ -469,12 +469,52 @@ describe('authenticated game API', () => {
 		expect(two).toEqual(one);
 		expect(await a.query(api.players.me, {})).toEqual({
 			playerId: one.playerId,
-			displayName: 'Alice',
-			canHost: false
+			displayName: 'Alice'
 		});
-		await expect(a.mutation(api.rooms.create, {})).rejects.toThrow('DISABLED');
+		const room = await a.mutation(api.rooms.create, {});
+		expect(await a.query(api.rooms.view, { roomId: room.roomId })).toMatchObject({
+			host: { playerId: one.playerId },
+			seat: 'host',
+			status: 'open'
+		});
 	});
-	it('redeems a single-use host pass and protects the one invited seat and member view', async () => {
+	it('limits a host to two open rooms and releases capacity when one closes', async () => {
+		const t = harness();
+		const a = t.withIdentity({ tokenIdentifier: 'issuer|quota-host' });
+		await a.mutation(api.players.ensure, { displayName: 'Alice' });
+		const first = await a.mutation(api.rooms.create, {});
+		await a.mutation(api.rooms.create, {});
+		await expect(a.mutation(api.rooms.create, {})).rejects.toThrow('QUOTA');
+		await a.mutation(api.rooms.close, { roomId: first.roomId });
+		const replacement = await a.mutation(api.rooms.create, {});
+		expect(await a.query(api.rooms.view, { roomId: replacement.roomId })).toMatchObject({
+			status: 'open'
+		});
+	});
+	it('admits fifty new players per UTC day while preserving existing player access', async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-10-27T12:00:00Z'));
+		const t = harness();
+		for (let i = 0; i < 50; i++) {
+			await t
+				.withIdentity({ tokenIdentifier: `issuer|daily-${i}` })
+				.mutation(api.players.ensure, { displayName: 'Player' });
+		}
+		const extra = t.withIdentity({ tokenIdentifier: 'issuer|daily-extra' });
+		await expect(extra.mutation(api.players.ensure, { displayName: 'Extra' })).rejects.toThrow(
+			'QUOTA'
+		);
+		const existing = t.withIdentity({ tokenIdentifier: 'issuer|daily-0' });
+		await existing.mutation(api.players.ensure, { displayName: 'Player' });
+		const room = await existing.mutation(api.rooms.create, {});
+		expect(await existing.query(api.rooms.view, { roomId: room.roomId })).toMatchObject({
+			status: 'open'
+		});
+		vi.setSystemTime(new Date('2026-10-28T00:00:00Z'));
+		await extra.mutation(api.players.ensure, { displayName: 'Extra' });
+		expect(await extra.query(api.players.me, {})).toMatchObject({ displayName: 'Extra' });
+	});
+	it('protects the one invited seat and member view', async () => {
 		const t = harness();
 		const a = t.withIdentity({ tokenIdentifier: 'issuer|a' });
 		const b = t.withIdentity({ tokenIdentifier: 'issuer|b' });
@@ -485,9 +525,6 @@ describe('authenticated game API', () => {
 			[outsider, 'Chris']
 		] as const)
 			await client.mutation(api.players.ensure, { displayName: name });
-		const { code } = await t.mutation(internal.ops.mintHostPass, { note: 'test operator' });
-		await a.mutation(api.players.redeemHostPass, { code });
-		await expect(b.mutation(api.players.redeemHostPass, { code })).rejects.toThrow('BAD_INPUT');
 		const room = await a.mutation(api.rooms.create, {});
 		await expect(outsider.query(api.rooms.view, { roomId: room.roomId })).rejects.toThrow(
 			'NOT_FOUND'
@@ -1033,6 +1070,7 @@ describe('authenticated game API', () => {
 		const alice = await a.query(api.players.me, {});
 		await t.mutation(internal.ops.revokePlayer, { playerId: present(alice).playerId });
 		await expect(a.query(api.players.me, {})).rejects.toThrow('DISABLED');
+		await expect(a.mutation(api.rooms.create, {})).rejects.toThrow('DISABLED');
 		await expect(
 			a.mutation(api.players.ensure, { displayName: 'New identity attempt' })
 		).rejects.toThrow('DISABLED');

@@ -24,7 +24,7 @@ const messages: Record<string, string> = {
 	STACK: 'That effect is already active on your opponent.',
 	CHALLENGE: 'Answer the brain teaser before submitting. You can still run samples.',
 	PAUSED: 'Judging is paused. Your source is saved; try again when judging resumes.',
-	DISABLED: 'This account or action is disabled. A host pass is required to create rooms.'
+	DISABLED: 'This account or action is disabled.'
 };
 export function explain(cause: unknown) {
 	const data = cause instanceof ConvexError ? cause.data : null;
@@ -122,7 +122,7 @@ export function createGameClient() {
 			)
 		);
 	});
-	// Profile objects change on rename or host-pass redemption; only eligibility
+	// Profile objects change on rename; only eligibility
 	// owns this clock, so a refresh cannot reset its offset to local time.
 	const clockEligible = $derived(session.isAuthenticated && !!me.data);
 	$effect(() => {

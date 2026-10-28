@@ -14,7 +14,9 @@ Run `bunx --no-install convex dev` for your development backend and `bun run dev
 
 ## Operations
 
-Judging starts disabled. Host passes restrict room creation; joining requires a single-use invitation. Operator functions in `convex/ops.ts` mint passes, pause judging, reduce caps, revoke players, declare infrastructure incidents and annul finished matches. These functions are internal and require trusted deployment access.
+Judging starts disabled. Any signed-in player may create up to two open rooms; joining requires a single-use invitation. Operator functions in `convex/ops.ts` pause judging, reduce caps, revoke players, declare infrastructure incidents and annul finished matches. These functions are internal and require trusted deployment access.
+
+Before updating an existing deployment to this revision, complete the [hosting data migration](docs/migrations/retire-host-passes.md). Fresh deployments need no migration.
 
 Problem packages, hidden inputs, expected answers and reference solutions belong in the separate private problem repository. Publish immutable versions and activate them only after measured sandbox calibration. Never place those artifacts, browser sessions or provider credentials in this public repository.
 

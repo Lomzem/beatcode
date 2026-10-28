@@ -23,7 +23,6 @@
 		</div>
 		<div class="room-guidance">
 			<p>Joining a friend? Open their invitation link.</p>
-			<p class="muted">To create a room, redeem a host pass in Rooms.</p>
 			<details>
 				<summary>Match rules</summary>
 				<dl>
