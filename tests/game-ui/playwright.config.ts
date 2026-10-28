@@ -5,7 +5,7 @@ export default defineConfig({
 	testMatch: '*.browser.ts',
 	workers: 1,
 	outputDir: '../../.scratch/competitive-leetcode/game-ui-results',
-	use: { baseURL: 'http://127.0.0.1:4188', trace: 'retain-on-failure' },
+	use: { baseURL: 'http://127.0.0.1:4188', serviceWorkers: 'block', trace: 'retain-on-failure' },
 	projects: (['chromium', 'firefox', 'webkit'] as const).flatMap((browserName) =>
 		[320, 1280].map((width) => ({
 			name: `${browserName}-${width}`,
