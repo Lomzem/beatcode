@@ -1,4 +1,4 @@
-# UI accessibility and responsive design
+# UI rules, accessibility and responsive design
 
 Accessibility and responsive usability are release requirements. Apply these rules when designing, implementing, or reviewing UI.
 
@@ -14,7 +14,9 @@ Run containerized browser checks with the workspace user's UID and GID so genera
 
 Target [WCAG 2.2 AA](https://www.w3.org/TR/WCAG22/). Provide accessible names, labels and errors, visible focus, dialog focus restoration, adequate contrast and target sizes, and status feedback independent of color. Support reduced motion and user contrast preferences.
 
-Design for competitive programmers and computer science enthusiasts using a coding tool. Lead with rooms, problems, code and match actions. Use familiar programming terminology and compact, descriptive headings. Omit marketing heroes, taglines, subtitles, promotional badges and decorative labels.
+Design for competitive programmers and computer science enthusiasts using a coding tool. Lead with rooms, problems, code and match actions. Use familiar programming terminology. Each heading is a plain label for its content, with the content directly beneath it. Omit marketing heroes, corny subtitles, taglines and decorative labels.
+
+No badges or pills. Write status, category and count labels as plain text: a word in a sentence, a table column or a label beside its value.
 
 Give the tool a distinctive visual identity through expressive typography, bold solid colors, asymmetry and purposeful interaction. Accessibility constrains readability and interaction, not personality. Avoid generic business-software presentation.
 
@@ -24,7 +26,9 @@ Keep layouts stable through first paint, font loading, authentication and live u
 
 Use shadcn-svelte Select for dropdown selection, with associated labels, keyboard operation, visible focus and persisted values where applicable; do not substitute native select controls.
 
-Use plain sections, lists, tables and restrained separators. Avoid generic card containers, boxed feature grids, oversized rounded panels and decorative icons. The game’s playable cards remain functional deck controls; their presentation should be compact and useful.
+Lay out sections with headings, whitespace and dividers; use lists and tables where appropriate. Use a card only for one item in a set the reader compares side by side. Avoid generic card containers, boxed feature grids, oversized rounded panels and decorative icons. The game’s playable cards remain functional deck controls; their presentation should be compact and useful.
+
+Support dark and light themes using theme color tokens, with WCAG 2.2 AA contrast in both. Give every chart and progress bar a text equivalent.
 
 Use solid colors. Avoid gradients in backgrounds, text, borders and controls.
 
